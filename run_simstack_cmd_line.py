@@ -60,7 +60,7 @@ def main():
     try:
         param_file_path = sys.argv[1]
     except:
-        param_file_path = os.path.join('config', 'uvista.ini')
+        param_file_path = os.path.join('config', 'example.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
