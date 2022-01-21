@@ -159,22 +159,56 @@ class SimstackResults(SimstackToolbox):
 
 	def plot_seds(self):
 		zlen = len(self.results_dict['SED_df']['flux_density'])
-		plen = 2
-		fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
-		for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
-			zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
-			for p, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
-				# pdb.set_trace()
-				sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
-				std = self.results_dict['SED_df']['std_error'][zlab][plab]
-				for mlab in sed:
-					axs[p, z].scatter(sed.index, sed[mlab])
-					pdb.set_trace
-					# axs[p, z].plot(sed.index, sed[mlab], label=mlab)
-
+		if len(self.config_dict['parameter_names']) == 3:
+			zlen = len(self.results_dict['SED_df']['flux_density'])
+			plen = 2
+			fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
+			for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
+				zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
+				for p, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
 					# pdb.set_trace()
-					LIR = self.results_dict['SED_df']['LIR'][zlab][plab][mlab][0]
-					sed_params = self.results_dict['SED_df']['SED'][zlab][plab][mlab]
+					sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
+					std = self.results_dict['SED_df']['std_error'][zlab][plab]
+					for mlab in sed:
+						axs[p, z].scatter(sed.index, sed[mlab])
+
+						# axs[p, z].plot(sed.index, sed[mlab], label=mlab)
+
+						# pdb.set_trace()
+						LIR = self.results_dict['SED_df']['LIR'][zlab][plab][mlab][0]
+						sed_params = self.results_dict['SED_df']['SED'][zlab][plab][mlab]
+						# print(zlab, plab)
+						# print(sed_params)
+						T_obs = sed_params['T_observed'].value
+						T_rf = T_obs * (1 + zmid)
+						wv_array = self.loggen(8, 1000, 100)
+						sed_array = self.fast_sed(sed_params, wv_array)
+
+						line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
+									  "LIR={:.1f}".format(np.log10(LIR))]
+						if LIR > 0:
+							axs[p, z].plot(wv_array, sed_array[0], label=line_label)
+							axs[p, z].legend(loc='upper right')
+						else:
+							axs[p, z].plot(wv_array, sed_array[0])
+
+						if not p:
+							axs[p, z].set_title(zlab)
+						axs[p, z].set_xscale('log')
+						axs[p, z].set_yscale('log')
+						axs[p, z].set_xlim([10, 1000])
+						axs[p, z].set_ylim([1e-5, 5e-1])
+		else:
+			fig, axs = plt.subplots(1, zlen, figsize=(36, 10))
+			for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
+				zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
+				for m, mlab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
+					sed = self.results_dict['SED_df']['flux_density'][zlab][mlab]
+					std = self.results_dict['SED_df']['std_error'][zlab][mlab]
+					axs[z].scatter(sed.index, sed.values)
+
+					LIR = self.results_dict['SED_df']['LIR'][zlab][mlab][0]
+					sed_params = self.results_dict['SED_df']['SED'][zlab][mlab]
 					# print(zlab, plab)
 					# print(sed_params)
 					T_obs = sed_params['T_observed'].value
@@ -185,72 +219,113 @@ class SimstackResults(SimstackToolbox):
 					line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
 								  "LIR={:.1f}".format(np.log10(LIR))]
 					if LIR > 0:
-						axs[p, z].plot(wv_array, sed_array[0], label=line_label)
-						axs[p, z].legend(loc='upper right')
+						axs[z].plot(wv_array, sed_array[0], label=line_label)
+						axs[z].legend(loc='upper right')
 					else:
-						axs[p, z].plot(wv_array, sed_array[0])
+						axs[z].plot(wv_array, sed_array[0])
 
-					if not p:
-						axs[p, z].set_title(zlab)
-					axs[p, z].set_xscale('log')
-					axs[p, z].set_yscale('log')
-					axs[p, z].set_xlim([10, 1000])
-					axs[p, z].set_ylim([1e-5, 5e-1])
+					if not m:
+						axs[z].set_title(zlab)
+					axs[z].set_xscale('log')
+					axs[z].set_yscale('log')
+					axs[z].set_xlim([10, 1000])
+					axs[z].set_ylim([1e-5, 5e-1])
+					#pdb.set_trace()
 
 	def plot_flux_densities(self):
 		wv_keys = list(self.results_dict['maps_dict'].keys())
 		wlen = len(wv_keys)
-		plen = 2
-		fig, axs = plt.subplots(plen, wlen, figsize=(22, 10))
-		for iwv, wlab in enumerate(wv_keys):
-			for ip, plab in enumerate(self.results_dict['maps_dict'][wlab]['results_df']['flux_df']):
-				flux_df = self.results_dict['maps_dict'][wlab]['results_df']['flux_df'][plab]
-				error_df = self.results_dict['maps_dict'][wlab]['results_df']['error_df'][plab]
+		if len(self.config_dict['parameter_names']) == 3:
+			plen = 2
+			fig, axs = plt.subplots(plen, wlen, figsize=(22, 10))
+			for iwv, wlab in enumerate(wv_keys):
+				for ip, plab in enumerate(self.results_dict['maps_dict'][wlab]['results_df']['flux_df']):
+					flux_df = self.results_dict['maps_dict'][wlab]['results_df']['flux_df'][plab]
+					error_df = self.results_dict['maps_dict'][wlab]['results_df']['error_df'][plab]
+					for mlab in flux_df:
+						# pdb.set_trace()
+						axs[ip, iwv].scatter(flux_df[mlab].index, flux_df[mlab].values * 1e3)
+						axs[ip, iwv].errorbar(flux_df[mlab].index, flux_df[mlab].values * 1e3, error_df[mlab].values * 1e3,
+											  label=mlab)
+						if not ip:
+							axs[ip, iwv].set_title(wlab)
+						else:
+							axs[ip, iwv].set_xlabel('redshift')
+						if not iwv:
+							axs[ip, iwv].set_ylabel('flux density (Jy)')
+						axs[ip, iwv].set_yscale('log')
+						#axs[ip, iwv].set_xlim([0., 8])
+						axs[ip, iwv].set_ylim([1e-3, 5e1])
+						if (ip == 1) & (iwv == 0):
+							axs[ip, iwv].legend(loc='upper right')
+		else:
+			plen = 1
+			fig, axs = plt.subplots(plen, wlen, figsize=(22, 10))
+			for iwv, wlab in enumerate(wv_keys):
+				flux_df = self.results_dict['maps_dict'][wlab]['results_df']['flux_df']
+				error_df = self.results_dict['maps_dict'][wlab]['results_df']['error_df']
 				for mlab in flux_df:
 					# pdb.set_trace()
-					axs[ip, iwv].scatter(flux_df[mlab].index, flux_df[mlab].values * 1e3)
-					axs[ip, iwv].errorbar(flux_df[mlab].index, flux_df[mlab].values * 1e3, error_df[mlab].values * 1e3,
+					axs[iwv].scatter(flux_df[mlab].index, flux_df[mlab].values * 1e3)
+					axs[iwv].errorbar(flux_df[mlab].index, flux_df[mlab].values * 1e3, error_df[mlab].values * 1e3,
 										  label=mlab)
-					if not ip:
-						axs[ip, iwv].set_title(wlab)
-					else:
-						axs[ip, iwv].set_xlabel('redshift')
+					axs[iwv].set_title(wlab)
+					axs[iwv].set_xlabel('redshift')
 					if not iwv:
-						axs[ip, iwv].set_ylabel('flux density (Jy)')
-					# axs[ip, iwv].set_xscale('log')
-					axs[ip, iwv].set_yscale('log')
-					#axs[ip, iwv].set_xlim([0., 8])
-					axs[ip, iwv].set_ylim([1e-3, 5e1])
-					if (ip == 1) & (iwv == 0):
-						axs[ip, iwv].legend(loc='upper right')
+						axs[iwv].set_ylabel('flux density (Jy)')
+					axs[iwv].set_yscale('log')
+					axs[iwv].set_ylim([1e-3, 5e1])
+					if (iwv == 0):
+						axs[iwv].legend(loc='upper right')
 
 	def plot_lir_vs_z(self):
-		size_data_array = [len(self.config_dict['parameter_names'][i]) for i in
-						   self.config_dict['parameter_names']]
-		sed_data_array = np.zeros(size_data_array)
-		z_data_array = np.zeros(size_data_array[0])
-		zlen = 2
-		plen = 1
-		fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
+		#if len(self.config_dict['parameter_names']) == 3:
+
+		size_lir_vs_z_array = [len(self.config_dict['parameter_names'][i]) for i in self.config_dict['parameter_names']]
+		sed_lir_vs_z_array = np.zeros(size_lir_vs_z_array)
+		z_data_array = np.zeros(size_lir_vs_z_array[0])
+		zlen = 1
+		plen = len(size_lir_vs_z_array) - 1
+
+		# Rearrange data into arrays
 		for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
 			zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
-			for p, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
-				# pdb.set_trace()
-				sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
-				std = self.results_dict['SED_df']['std_error'][zlab][plab]
+			if plen == 2:
+				for p, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
+					sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
+					std = self.results_dict['SED_df']['std_error'][zlab][plab]
+					for im, mlab in enumerate(sed):
+						LIR = self.results_dict['SED_df']['LIR'][zlab][plab][mlab][0]
+						sed_params = self.results_dict['SED_df']['SED'][zlab][plab][mlab]
+						z_data_array[z] = zmid
+						sed_lir_vs_z_array[z, im, p] = np.log10(LIR)
+			else:
+				sed = self.results_dict['SED_df']['flux_density'][zlab]
+				std = self.results_dict['SED_df']['std_error'][zlab]
 				for im, mlab in enumerate(sed):
-					LIR = self.results_dict['SED_df']['LIR'][zlab][plab][mlab][0]
-					sed_params = self.results_dict['SED_df']['SED'][zlab][plab][mlab]
+					LIR = self.results_dict['SED_df']['LIR'][zlab][mlab][0]
+					sed_params = self.results_dict['SED_df']['SED'][zlab][mlab]
 					z_data_array[z] = zmid
-					sed_data_array[z, im, p] = np.log10(LIR)
+					sed_lir_vs_z_array[z, im] = np.log10(LIR)
 
-		for im in range(size_data_array[1]):
-			for ip in range(size_data_array[2]):
-
-				axs[ip].scatter(z_data_array, sed_data_array[:, im, ip])
-				axs[ip].plot(z_data_array, sed_data_array[:, im, ip])
-				if not ip:
-					axs[ip].set_ylabel('LIR (M_sun)')
-				axs[ip].set_xlabel('redshift')
-				axs[ip].set_ylabel('flux density (Jy)')
-				axs[ip].set_ylim([9, 13.5])
+		# Plot LIR vs z
+		keys = list(self.config_dict['parameter_names'])
+		fig, axs = plt.subplots(1, plen, figsize=(36, 10))
+		for im, mlab in enumerate(self.config_dict['parameter_names'][keys[1]]):
+			if plen == 2:
+				for ip, plab in enumerate(self.config_dict['parameter_names'][keys[2]]):
+					axs[ip].scatter(z_data_array, sed_lir_vs_z_array[:, im, ip])
+					axs[ip].plot(z_data_array, sed_lir_vs_z_array[:, im, ip],label=mlab)
+					if not ip:
+						axs[ip].set_ylabel('LIR (M_sun)')
+					axs[ip].set_xlabel('redshift')
+					axs[ip].set_ylabel('flux density (Jy)')
+					axs[ip].set_ylim([9, 13.5])
+					axs[ip].set_title(plab)
+			else:
+				axs.scatter(z_data_array, sed_lir_vs_z_array[:, im])
+				axs.plot(z_data_array, sed_lir_vs_z_array[:, im], label=mlab)
+				axs.set_ylabel('LIR (M_sun)')
+				axs.set_xlabel('redshift')
+				axs.set_ylabel('flux density (Jy)')
+				axs.set_ylim([9, 13.5])

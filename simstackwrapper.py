@@ -32,17 +32,17 @@ class SimstackWrapper(SimstackAlgorithm):
         super().__init__(param_file_path)
 
         if read_catalog:
-            self.import_catalog()  # This happens in skycatalogs
+            self.import_catalog()  # This happens in skycatalogs.py
 
         if read_maps:
-            self.import_maps()  # This happens in skymaps
+            self.import_maps()  # This happens in skymaps.py
 
         if stack_automatically:
-            self.perform_simstack()  # This happens in simstackalgorithm
+            self.perform_simstack()  # This happens in simstackalgorithm.py
 
         if self.stack_successful and parse_automatically:
             results_object = SimstackResults(self)
-            results_object.parse_results()  # This happens in simstackresults
+            results_object.parse_results()  # This happens in simstackresults.py
             setattr(self, 'results_dict', getattr(results_object, 'results_dict'))
 
         if save_automatically:
