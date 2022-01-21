@@ -1,5 +1,4 @@
 import pdb
-import os
 import json
 import numpy as np
 import pandas as pd
@@ -220,7 +219,7 @@ class SimstackResults(SimstackToolbox):
 						axs[ip, iwv].set_ylabel('flux density (Jy)')
 					# axs[ip, iwv].set_xscale('log')
 					axs[ip, iwv].set_yscale('log')
-					axs[ip, iwv].set_xlim([0., 8])
+					#axs[ip, iwv].set_xlim([0., 8])
 					axs[ip, iwv].set_ylim([1e-3, 5e1])
 					if (ip == 1) & (iwv == 0):
 						axs[ip, iwv].legend(loc='upper right')

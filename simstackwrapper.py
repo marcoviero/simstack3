@@ -22,9 +22,8 @@ class SimstackWrapper(SimstackAlgorithm):
         TODO:
         - counts in bins
         - agn selection to pops
-        - lookback time
         - CIB estimates
-        - CUBE OF BEST FITS
+        - Simulated map of best-fits
 
     '''
     def __init__(self, param_file_path, read_maps=False, read_catalog=False,

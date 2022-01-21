@@ -28,20 +28,11 @@ To run from command line:
 > python run_simstack_cmd_line.py
 
 Returned object contains:
-- simstack_object.config_dict; dict_keys(['general', 'cosmology', 'io', 'catalog', 'maps'])
-- simstack_object.catalog_dict; dict_keys(['table'])
+- simstack_object.config_dict; dict_keys(['general', 'io', 'catalog', 'maps', 'cosmology_dict', 'distance_bins', 'parameter_names', 'pickles_path'])
+- simstack_object.catalog_dict; dict_keys(['tables'])
 - simstack_object.maps_dict; dict_keys(['spire_psw', 'spire_pmw', ...])
-- simstack_object.results_dict; dict_keys(['spire_plw', 'wavelengths']) # change to results, metadata
+- simstack_object.results_dict; dict_keys(['maps_dict', 'SED_df'])
 
-Internal methods (i.e., functions) include:
-- import_catalog
-- import_maps
-- import_pickles
-
-Keyword arguments include:
-- Estimate Extragalactic Background Light (EBL)
-- Estimate Temperatures
-- Estimate Bayesian uncertainties via. MCMC
 '''
 
 # Standard modules
@@ -60,14 +51,16 @@ def main():
         format='%(asctime)s  %(message)s',
         datefmt='%Y-%d-%m %I:%M:%S %p')
 
-    # Debug Flag
+    # Flags
     debug = True
+    add_background = False
+    crop_circles = True
 
     # Get parameters from the provided parameter file
     try:
         param_file_path = sys.argv[1]
     except:
-        param_file_path = os.path.join('examples', 'hers_hetdex.ini')
+        param_file_path = os.path.join('config', 'uvista.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
@@ -77,7 +70,7 @@ def main():
     t0 = time.time()
 
     # Stack according to parameters in parameter file
-    simstack_object.perform_simstack()
+    simstack_object.perform_simstack(add_background=add_background, crop_circles=crop_circles)
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)

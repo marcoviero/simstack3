@@ -19,15 +19,29 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
     def __init__(self, param_path_file):
         super().__init__()
 
+        # Import parameters from config.ini file
         self.config_dict = self.get_params_dict(param_path_file)
+
+        # Define Cosmologies and identify chosen cosmology from config.ini
         cosmology_key = self.config_dict['general']['cosmology']
         self.config_dict['cosmology_dict'] = {'Planck18': planck18, 'Planck15': planck15}
         self.config_dict['cosmology_dict']['cosmology'] = self.config_dict['cosmology_dict'][cosmology_key]
+
+        # Store redshifts and lookback times.
         zbins = json.loads(json.loads(self.config_dict['catalog']['classification'])['redshift']['bins'])
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
     def perform_simstack(self, add_background=False, crop_circles=True):
+        '''
+        perform_simstack takes the following steps:
+        0. Get catalog and drop nans
+        1. Assign parameter labels
+        2. Call stack_in_wavelengths
+
+        :param add_background: add additional background layer.
+        :param crop_circles: exclude masked areas.
+        '''
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
