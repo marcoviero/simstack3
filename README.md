@@ -134,5 +134,70 @@ See example_perform_simstack.ipynb.  Steps are
 And that's it.  Results will be saved in folder defined in config.ini file.
 
 ### Admiring your Results
+Stacking was successful! Great, now what?  
 
-See example_plot_results.ipynb.  
+Results are stored in a *pickle*, in the PICKLEsPATH/simstack/stacked_flux_densities/shortname (e.g., on my computer that would be D:\pickles\simstack\stacked_flux_densities\uVista_DR2_example\uVista_DR2_example.pkl)
+
+Inside the pickle is an object containing raw stacked flux densities (in Jy) and errors, and all data used to estimate them, and are accessed via python dictionaries:
+- simstack_object.config_dict
+- simstack_object.maps_dict
+- simstack_object.catalog_dict
+- simstack_object.results_dict
+
+However, initially *results_dict* is empty; to populate the results_dict requires 
+1. from simstackresults import SimstackResults
+2. simstack_object = import_saved_pickles(path_file)
+3. simstack_object.results_dict
+
+The reason for this extra step is because the **SimstackResults** Class, which plots fluxes and estimates values like SEDs and LIRs, will be constantly improving, while the original stacked fluxes never change so should only need to be estimated once.  
+
+#### Inside the results_dict
+Like a Russian doll, there are many layers to the results dict.  The first layer contains
+- maps_dict: which contains dictionaries for each wavelength stacked, each of which contains
+  - results_df: this is where the fluxes and errors are stored for "easy" access. 
+    -flux_df: depending on number of ways catalog is split (i.e., just stellar mass and redshift, or star-forming/quiescent too?)
+      -split_params: keys are stellar_mass labels
+        -stellar_mass_label: pandas DataFrame where index is redshift and column is flux
+    -error_df - same structure as flux_df
+Other layers inside maps_dict are the raw format of the stacked fluxes, not as useful as the results_df, but summarized here:
+  - wavelength: the wavelength in microns
+  - redshift: key is redshift labels, values are:
+    - flux_density: contains redshift keys
+      - redshift_key: contains fluxes
+      - population_key: contains fluxes
+    - std_error
+      - redshift_key: contains errors
+      - population_key: contains errors
+  - stellar_mass: key is stellar mass labels
+    - flux_density
+    - std_error
+    - redshift
+- SED_df (will only be calculated is stacking was more than one wavelength, and ideally many more than two)
+  - SED: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
+    - contains keys of split_param labels (e.g., 'split_params_0')
+      - contains keys of stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
+        - contains Parameter objects which are the result of fitting fast_sed (located in SimstackToolbox)
+  - LIR
+    - contains keys of split_param labels (e.g., 'split_params_0')
+      - contains keys of stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
+        - contains infrared luminosity estimates (L_sun estimated from 8-1000um) 
+  - wavelengths: contains list of wavelengths corresponding to SED
+  - flux_density: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
+    - contains keys of split_param labels (e.g., 'split_params_0')
+      - contains pandas DataFrames where index is redshift and columns are flux densities organized by stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
+  - std_error: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
+    - contains keys of split_param labels (e.g., 'split_params_0')
+      - contains pandas DataFrames where index is redshift and columns are flux densities organized by stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
+    
+So for example, if you want flux densities of your stack at redshift 0.5-1.0 and star-forming galaxies are split_params_1, look at the pandas table stored in
+
+simstack_object.results_dict['SED_df']['flux_density']['redshift_0.5_1.0']['split_params_1']
+
+#### Visualizing results
+
+Existing plots so far are:
+simstack_object.plot_flux_densities()
+simstack_object.plot_seds()
+simstack_object.plot_lir_vs_z()
+
+See example_plot_results.ipynb for importing stacking pickles, parsing results, and plotting them. 
