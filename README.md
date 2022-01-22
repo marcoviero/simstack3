@@ -1,11 +1,13 @@
 # simstack3
 Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.
 
-For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract) 
+For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract).
 <!---
 If you've arrived via the newly published Viero & Moncelsi 2022, welcome, all code to reproduce the results is contained in this repository.  
 Find data products (e.g., maps, catalog, cosmos2020.ini) [here](https://sites.astro.caltech.edu/viero/simstack/cosmos/).
 --->
+Improvements include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
+
 This stacking algorithm is separated into two distinct parts:
 1. Performing the stack and saving the results (can take a long time, so better to number of times you do this!)  
 2. Importing the saved results and plotting them.  
