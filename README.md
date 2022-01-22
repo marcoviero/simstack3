@@ -69,9 +69,6 @@ We use uvista.ini as an example of the format. The configuration file has the fo
 > shortname = uVista_DR2
 - shortname: Name given to the folder where results are written.  If already exists, will create a new folder folllowed with understore, e.g., simstack/stacked_flux_densities/uVista_DR2_
 
-> cosmology = Planck18
-- Options are: Planck15, Planck18
-
 #### catalog
 > path = CATSPATH uVista
 - path: Similar to above, where CATSPATH is a pre-defined environment variable, and uVista is a directory in CATSPATH.
