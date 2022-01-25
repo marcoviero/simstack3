@@ -20,8 +20,10 @@ class SimstackResults(SimstackToolbox):
 		self.results_dict = {'maps_dict': {}}
 		wavelength_keys = list(self.maps_dict.keys())
 		wavelengths = []
-		split_dict = json.loads(self.config_dict['catalog']['classification'])
-		split_type = split_dict.pop('split_type')
+		#split_dict = json.loads(self.config_dict['catalog']['classification'])
+		split_dict = self.config_dict['catalog']['classification']
+		#split_type = split_dict.pop('split_type')
+		#pdb.set_trace()
 		label_keys = list(split_dict.keys())
 		label_dict = self.config_dict['parameter_names']
 		ds = [len(label_dict[k]) for k in label_dict]
@@ -50,7 +52,19 @@ class SimstackResults(SimstackToolbox):
 							# CHECK THAT LABEL EXISTS FIRST
 							if label in results_object[zlab].params:
 								flux_array[z, i, j] = results_object[zlab].params[label].value
-								error_array[z, i, j] = results_object[zlab].params[label].stderr
+								#scale_errors = 1.0
+								#if 'pacs' in key:
+								#	scale_errors = 1e2
+								#elif 'mips' in key:
+								#	scale_errors = 1e1
+								try:
+									error_array[z, i, j] = results_object[zlab].params[label].stderr #* scale_errors
+								except:
+									error_array[z, i, j] = results_object[zlab].params[label].value
+									print(key)
+									print(label)
+									print(results_object[zlab].params[label])
+									#pdb.set_trace()
 					else:
 						label = "__".join([zval, ival]).replace('.', 'p')
 						#print(label)
@@ -138,7 +152,7 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['SED'][zlab][jlab] = {}
 						for i, ilab in enumerate(label_dict[label_keys[1]]):
 							tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i, j], sed_error_array[:, z, i, j],
-														 betain=1.8)
+														 betain=beta_rj, redshiftin=z_mid[z])
 							tst_LIR = self.fast_Lir(tst_m, z_mid[z])
 							self.results_dict['SED_df']['LIR'][zlab][jlab][ilab] = tst_LIR.value
 							self.results_dict['SED_df']['SED'][zlab][jlab][ilab] = tst_m
@@ -150,7 +164,7 @@ class SimstackResults(SimstackToolbox):
 
 					for i, ilab in enumerate(label_dict[label_keys[1]]):
 						tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i], sed_error_array[:, z, i],
-													 betain=1.8)
+													 betain=beta_rj, redshiftin=z_mid[z])
 						tst_LIR = self.fast_Lir(tst_m, z_mid[z])
 
 						if zlab not in self.results_dict['SED_df']['LIR']:
@@ -177,7 +191,7 @@ class SimstackResults(SimstackToolbox):
 						std = self.results_dict['SED_df']['std_error'][zlab][plab]
 						for mlab in sed:
 							axs[p, z].scatter(sed.index, sed[mlab])
-
+							#axs[p, z].errorbar(sed.index, sed[mlab], std[mlab], 0, 'none')
 							# axs[p, z].plot(sed.index, sed[mlab], label=mlab)
 
 							# pdb.set_trace()

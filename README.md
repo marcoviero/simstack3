@@ -53,10 +53,10 @@ The code centers around the configuration file, config.ini (or whatever name you
 
 We use uvista.ini as an example of the format. The configuration file has the following sections:
 #### general
-> binning = {"stack_all_z_at_once":"True"}
+> binning = {"stack_all_z_at_once": 0, "add_background": 1}
 - stack_all_z_at_once: True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
 
-> error_estimator = {"bootstrap": "False", "emcee"="False"}
+> error_estimator = {"bootstrap": {"seed": 42, "iterations": 0}, "emcee": 0}
 - bootstrap: Errors derived via. bootstrap (not working yet)
 - emcee: Errors derived via. MCMC (not working yet)
 

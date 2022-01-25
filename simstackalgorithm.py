@@ -28,11 +28,12 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['cosmology_dict']['cosmology'] = self.config_dict['cosmology_dict'][cosmology_key]
 
         # Store redshifts and lookback times.
-        zbins = json.loads(json.loads(self.config_dict['catalog']['classification'])['redshift']['bins'])
+        #zbins = json.loads(json.loads(self.config_dict['catalog']['classification'])['redshift']['bins'])
+        zbins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-    def perform_simstack(self, add_background=False, crop_circles=True):
+    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -42,15 +43,24 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         :param add_background: add additional background layer.
         :param crop_circles: exclude masked areas.
         '''
+        if 'stack_all_z_at_once' not in self.config_dict['general']['binning']:
+            self.config_dict['general']['binning']['stack_all_z_at_once'] = stack_all_z_at_once
+        if 'add_background' not in self.config_dict['general']['binning']:
+            self.config_dict['general']['binning']['add_background'] = add_background
+        #pdb.set_trace()
+        stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
+        add_background = self.config_dict['general']['binning']['add_background']
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
 
         # Get binning details
-        binning = json.loads(self.config_dict['general']['binning'])
+        #binning = json.loads(self.config_dict['general']['binning'])
+        binning = self.config_dict['general']['binning']
 
-        split_dict = json.loads(self.config_dict['catalog']['classification'])
-        split_type = split_dict.pop('split_type')
+        #split_dict = json.loads(self.config_dict['catalog']['classification'])
+        split_dict = self.config_dict['catalog']['classification']
+        #split_type = split_dict.pop('split_type')
         nlists = []
         for k in split_dict:
             kval = split_dict[k]['bins']
@@ -65,7 +75,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Stack in redshift slices if stack_all_z_at_once is False
         bins = json.loads(split_dict["redshift"]['bins'])
         distance_labels = []
-        if binning['stack_all_z_at_once'] == "False":
+        #if binning['stack_all_z_at_once'] == "False":
+        if stack_all_z_at_once == False:
             redshifts = catalog.pop("redshift")
             for i in np.unique(redshifts):
                 catalog_in = catalog[redshifts == i]
@@ -143,8 +154,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         label_dict = self.config_dict['parameter_names']
         ds = [len(label_dict[k]) for k in label_dict]
-        if len(labels) == np.prod(ds[1:]):
-            nlists = ds[1:]  # what about background, this will fail!
+        if len(labels) == np.prod(ds[1:]) + add_background:
+            nlists = ds[1:]
         else:
             nlists = ds
 

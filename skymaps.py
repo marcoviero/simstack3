@@ -23,7 +23,8 @@ class Skymaps:
 
 		self.maps_dict = {}
 		for imap in self.config_dict['maps']:
-			map_params = json.loads(self.config_dict['maps'][imap])
+			#map_params = json.loads(self.config_dict['maps'][imap])
+			map_params = self.config_dict['maps'][imap]
 			map_dict = self.import_map_dict(map_params)
 			self.maps_dict[imap] = map_dict
 

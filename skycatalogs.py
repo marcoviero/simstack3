@@ -48,13 +48,15 @@ class Skycatalogs:
 	def split_table_into_populations(self):
 
 		# Make new table starting with RA and DEC
-		astrometry_keys = json.loads(self.config_dict['catalog']['astrometry'])
+		#astrometry_keys = json.loads(self.config_dict['catalog']['astrometry'])
+		astrometry_keys = self.config_dict['catalog']['astrometry']
 		self.catalog_dict['tables']['split_table'] = {}
 		self.catalog_dict['tables']['split_table'] = pd.DataFrame(self.catalog_dict['tables']['full_table'][astrometry_keys.values()])
 		self.catalog_dict['tables']['split_table'].rename(columns={astrometry_keys["ra"]: "ra", astrometry_keys["dec"]: "dec"}, inplace=True)
 
 		# Split catalog by classification type
-		split_dict = json.loads(self.config_dict['catalog']['classification'])
+		#split_dict = json.loads(self.config_dict['catalog']['classification'])
+		split_dict = self.config_dict['catalog']['classification']
 		split_type = split_dict.pop('split_type')
 
 		# By labels means unique values inside columns (e.g., "CLASS" = [0,1,2])

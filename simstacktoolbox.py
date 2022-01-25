@@ -3,6 +3,7 @@ import os
 import shutil
 import logging
 import pickle
+import json
 import numpy as np
 from configparser import ConfigParser
 from lmfit import Parameters, minimize, fit_report
@@ -103,10 +104,21 @@ class SimstackToolbox:
         for section in config.sections():
             dict_sect = {}
             for (each_key, each_val) in config.items(section):
-                dict_sect[each_key] = each_val.replace("'", '"')
+                # Remove quotations from dicts
+                try:
+                    dict_sect[each_key] = json.loads(each_val)
+                except:
+                    dict_sect[each_key] = each_val.replace("'", '"')
 
             dict_out[section] = dict_sect
 
+        # Further remove quotations from embedded dicts
+        for dkey in dict_out:
+            for vkey in dict_out[dkey]:
+                try:
+                    dict_out[dkey][vkey] = json.loads(dict_out[dkey][vkey])
+                except:
+                    pass
         return dict_out
 
     def write_config_file(self, params_out, config_filename_out):
@@ -125,18 +137,20 @@ class SimstackToolbox:
         with open(config_filename_out, 'w') as conf:
             config_out.write(conf)
 
-    def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8):
+    def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, redshiftin=0):
         fit_params = Parameters()
         fit_params.add('A', value=1e-32, vary=True)
-        fit_params.add('T_observed', value=24.0, vary=True, min=0.1)
+        fit_params.add('T_observed', value=23.0+0.4*(redshiftin), vary=True, max=25.0+0.4*(redshiftin))
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
 
         # nu_in = c * 1.e6 / wavelengths
+        fluxin = [np.max([i, 1e-7]) for i in fluxes]
 
         sed_params = minimize(self.find_sed_min, fit_params,
                               args=(wavelengths,),
-                              kws={'fluxes': fluxes, 'covar': covar})
+                              kws={'fluxes': fluxin, 'covar': covar**2})
+        #pdb.set_trace()
         m = sed_params.params
 
         return m
