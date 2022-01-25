@@ -47,7 +47,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             self.config_dict['general']['binning']['stack_all_z_at_once'] = stack_all_z_at_once
         if 'add_background' not in self.config_dict['general']['binning']:
             self.config_dict['general']['binning']['add_background'] = add_background
-        #pdb.set_trace()
         stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
         add_background = self.config_dict['general']['binning']['add_background']
 
@@ -55,10 +54,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         catalog = self.catalog_dict['tables']['split_table'].dropna()
 
         # Get binning details
-        #binning = json.loads(self.config_dict['general']['binning'])
         binning = self.config_dict['general']['binning']
 
-        #split_dict = json.loads(self.config_dict['catalog']['classification'])
         split_dict = self.config_dict['catalog']['classification']
         #split_type = split_dict.pop('split_type')
         nlists = []
@@ -75,7 +72,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Stack in redshift slices if stack_all_z_at_once is False
         bins = json.loads(split_dict["redshift"]['bins'])
         distance_labels = []
-        #if binning['stack_all_z_at_once'] == "False":
         if stack_all_z_at_once == False:
             redshifts = catalog.pop("redshift")
             for i in np.unique(redshifts):
@@ -99,41 +95,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
-
-    def trim_label_list(self, catalog, labels):
-
-        # Extract RA and DEC from catalog
-        ra_series = catalog.pop('ra')
-        dec_series = catalog.pop('dec')
-        keys = list(catalog.keys())
-        trimmed_labels = []
-
-        label_dict = self.config_dict['parameter_names']
-        ds = [len(label_dict[k]) for k in label_dict]
-        if len(labels) == np.prod(ds[1:]):
-            nlists = ds[1:]
-        else:
-            nlists = ds
-
-        ilayer = 0
-        for ipop in range(nlists[0]):
-            if len(nlists) > 1:
-                for jpop in range(nlists[1]):
-                    if len(nlists) > 2:
-                        for kpop in range(nlists[2]):
-                            if sum((catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & (catalog[keys[2]] == kpop)) > 0:
-                                trimmed_labels.append(labels[ilayer])
-                            ilayer += 1
-                    else:
-                        if sum((catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop)) > 0:
-                            trimmed_labels.append(labels[ilayer])
-                        ilayer += 1
-            else:
-                if sum(catalog[keys[0]] == ipop) > 0:
-                    trimmed_labels.append(labels[ilayer])
-                ilayer += 1
-
-        return trimmed_labels
 
     def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, write_fits_layers=False):
 
@@ -182,7 +143,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                 layers = np.delete(layers, ilayer, 0)
                             ilabel += 1
                     else:
-                        #pdb.set_trace()
                         ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop)
                         if sum(ind_src) > 0:
                             real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
@@ -211,7 +171,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             flattened_pixmap = np.sum(layers, axis=0)
             total_circles_mask = self.circle_mask(flattened_pixmap, radius * fwhm, pix)
             ind_fit = np.where(total_circles_mask >= 1)
-            #pdb.set_trace()
         else:
             ind_fit = np.where(0 * np.sum(layers, axis=0) == 0)
 
@@ -242,11 +201,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # If add_background=True, add background layer of ones.
         if add_background:
             cfits_maps[-3, :] = np.ones(np.shape(cmap[ind_fit]))
+
         # put map and noisemap in last two layers
         cfits_maps[-2, :] = cmap[ind_fit]
         cfits_maps[-1, :] = cnoise[ind_fit]
 
-        #pdb.set_trace()
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
     def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, crop_circles=False, add_background=False):
@@ -255,7 +214,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         for wv in map_keys:
             map_dict = self.maps_dict[wv]
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles, add_background=add_background)
-            #cube_labels = self.trim_label_list(catalog.copy(), labels)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
@@ -275,7 +233,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Step backward through cube so removal of rows does not affect order
         fit_params = Parameters()
         for iarg in range(len(cube)):
-            # Remove empty layers
+            # Assign Parameter Labels
             if not labels:
                 parameter_label = self.catalog_dict['tables']['parameter_labels'][iarg].replace('.', 'p')
             else:
@@ -309,8 +267,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Take the mean of the layers after they've been summed together
         model -= np.mean(model)
 
-        #pdb.set_trace()
-        # Does not work anymore, whats up?
         if (err1d is None) or 0 in err1d:
             return (data1d - model)
         else:
