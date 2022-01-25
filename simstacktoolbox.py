@@ -5,6 +5,7 @@ import logging
 import pickle
 import json
 import numpy as np
+from astropy.io import fits
 from configparser import ConfigParser
 from lmfit import Parameters, minimize, fit_report
 from scipy.ndimage.filters import gaussian_filter
@@ -69,8 +70,18 @@ class SimstackToolbox:
         logging.info("")
         shutil.copyfile(fp_in, fp_out)
 
+        # Write simmaps
+        if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
+            for wv in self.maps_dict:
+                #path_simmap = self.parse_path(self.config_dict['io']['output_folder'])
+                name_simmap = wv + '_simmap.fits'
+                hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
+                hdul = fits.HDUList([hdu])
+                hdul.writeto(os.path.join(out_file_path, name_simmap))
+                self.maps_dict[wv].pop("convolved_layer_cube")
+                self.maps_dict[wv].pop("flattened_simmap")
+
         return fpath
-        #pdb.set_trace()
 
     def import_saved_pickles(self, pickle_fn):
         with open(pickle_fn, "rb") as file_path:

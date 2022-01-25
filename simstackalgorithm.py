@@ -33,6 +33,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
+        # Setup Uncerainties
+        # Bootstrap
+        if 'bootstrap' in self.config_dict['general']['error_estimator']:
+            if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
+                boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+                print('Bootstrapping {} iterations'.format(boots))
+                #pdb.set_trace()
+
     def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False):
         '''
         perform_simstack takes the following steps:
@@ -40,15 +48,20 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         1. Assign parameter labels
         2. Call stack_in_wavelengths
 
-        :param add_background: add additional background layer.
-        :param crop_circles: exclude masked areas.
+        Following parameters are overwritten if included in config file.
+        :param add_background: (bool) add additional background layer.
+        :param crop_circles: (bool) exclude masked areas.
+        :params stack_all_z_at_once: (bool) choose between stacking in redshift slices or all at once.
         '''
         if 'stack_all_z_at_once' not in self.config_dict['general']['binning']:
             self.config_dict['general']['binning']['stack_all_z_at_once'] = stack_all_z_at_once
+        if 'crop_circles' not in self.config_dict['general']['binning']:
+            self.config_dict['general']['binning']['crop_circles'] = crop_circles
         if 'add_background' not in self.config_dict['general']['binning']:
             self.config_dict['general']['binning']['add_background'] = add_background
         stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
-        add_background = self.config_dict['general']['binning']['add_background']
+        crop_circles = self.config_dict['general']['binning']['crop_circles']
+        add_background = self.config_dict['general']['binning']['crop_circles']
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
@@ -58,6 +71,9 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         split_dict = self.config_dict['catalog']['classification']
         #split_type = split_dict.pop('split_type')
+        if 'split_type' in split_dict:
+            print('split_dict looks to be broken')
+            pdb.set_trace()
         nlists = []
         for k in split_dict:
             kval = split_dict[k]['bins']
@@ -166,6 +182,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         nlayers = np.shape(layers)[0]
 
         # STEP 2  - Convolve Layers and put in pixels
+        if "write_simmaps" in self.config_dict["general"]["error_estimator"]:
+            if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
+                map_dict["convolved_layer_cube"] = np.zeros(np.shape(layers))
+
         if crop_circles:
             radius = 1.1
             flattened_pixmap = np.sum(layers, axis=0)
@@ -198,7 +218,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             # Remove mean from map
             cfits_maps[umap, :] = tmap[ind_fit] - np.mean(tmap[ind_fit])
 
-        # If add_background=True, add background layer of ones.
+            # Add layer to write_simmaps cube
+            if "convolved_layer_cube" in map_dict:
+                map_dict["convolved_layer_cube"][umap, :, :] = tmap- np.mean(tmap[ind_fit])
+
+            # If add_background=True, add background layer of ones.
         if add_background:
             cfits_maps[-3, :] = np.ones(np.shape(cmap[ind_fit]))
 
@@ -221,6 +245,16 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 self.maps_dict[wv]['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
             else:
                 self.maps_dict[wv]['stacked_flux_densities'][distance_interval] = cov_ss_1d
+            if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
+                for i, iparam_label in enumerate(cube_dict['labels']):
+                    param_label = iparam_label.replace('.', 'p')
+                    if 'background' not in iparam_label:
+                        self.maps_dict[wv]["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
+
+                self.maps_dict[wv]["flattened_simmap"] = np.sum(self.maps_dict[wv]["convolved_layer_cube"], axis=0)
+                if 'background_layer' in cube_dict['labels']:
+                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
+
 
     def regress_cube_layers(self, cube, labels=None):
 
