@@ -53,7 +53,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             self.config_dict['general']['binning']['add_background'] = add_background
         stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
         crop_circles = self.config_dict['general']['binning']['crop_circles']
-        add_background = self.config_dict['general']['binning']['crop_circles']
+        add_background = self.config_dict['general']['binning']['add_background']
 
         # Bootstrap
         if 'bootstrap' in self.config_dict['general']['error_estimator']:
