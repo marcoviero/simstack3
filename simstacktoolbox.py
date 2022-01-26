@@ -106,6 +106,18 @@ class SimstackToolbox:
                 else:
                     return path_env + os.path.join('/', *path_in[1:])
 
+    def split_bootstrap_labels(self, labels):
+        labels_out = []
+        for ilabel in labels:
+            if 'background' in ilabel:
+                labels_out.append(ilabel)
+            else:
+                labels_out.append(ilabel+'_bootstrap1')
+                labels_out.append(ilabel+'_bootstrap2')
+        #pdb.set_trace()
+        return labels_out
+
+
     def get_params_dict(self, param_file_path):
         config = ConfigParser()
         config.read(param_file_path)

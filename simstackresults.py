@@ -20,7 +20,6 @@ class SimstackResults(SimstackToolbox):
 		self.results_dict = {'maps_dict': {}}
 		wavelength_keys = list(self.maps_dict.keys())
 		wavelengths = []
-		#split_dict = json.loads(self.config_dict['catalog']['classification'])
 		split_dict = self.config_dict['catalog']['classification']
 		#split_type = split_dict.pop('split_type')
 		label_keys = list(split_dict.keys())
@@ -47,29 +46,36 @@ class SimstackResults(SimstackToolbox):
 					if len(label_keys) > 2:
 						for j, jval in enumerate(label_dict[label_keys[2]]):
 							label = "__".join([zval, ival, jval]).replace('.', 'p')
+							label_boot1 = "_".join(["__".join([zval, ival, jval]).replace('.', 'p'), 'bootstrap1'])
+							label_boot2 = "_".join(["__".join([zval, ival, jval]).replace('.', 'p'), 'bootstrap2'])
 							#print(label)
 							# CHECK THAT LABEL EXISTS FIRST
 							if label in results_object[zlab].params:
 								flux_array[z, i, j] = results_object[zlab].params[label].value
-								#scale_errors = 1.0
-								#if 'pacs' in key:
-								#	scale_errors = 1e2
-								#elif 'mips' in key:
-								#	scale_errors = 1e1
+								error_array[z, i, j] = results_object[zlab].params[label].stderr #* scale_errors
+							elif label_boot1 in results_object[zlab].params:
+								flux_array[z, i, j] = (results_object[zlab].params[label_boot1].value) # + \
+								#					   results_object[zlab].params[label_boot2].value)/2
 								try:
-									error_array[z, i, j] = results_object[zlab].params[label].stderr #* scale_errors
+									error_array[z, i, j] = (results_object[zlab].params[label_boot1].stderr) # ** 2 + \
+									#						results_object[zlab].params[label_boot2].stderr ** 2) ** 0.5
 								except:
-									error_array[z, i, j] = results_object[zlab].params[label].value
-									print(key)
-									print(label)
-									print(results_object[zlab].params[label])
-									#pdb.set_trace()
+									error_array[z, i, j] = 1e1
 					else:
 						label = "__".join([zval, ival]).replace('.', 'p')
-						#print(label)
+						label_boot1 = "_".join(["__".join([zval, ival]).replace('.', 'p'), 'bootstrap1'])
+						label_boot2 = "_".join(["__".join([zval, ival]).replace('.', 'p'), 'bootstrap2'])
 						if label in results_object[zlab].params:
 							flux_array[z, i] = results_object[zlab].params[label].value
 							error_array[z, i] = results_object[zlab].params[label].stderr
+						elif label_boot1 in results_object[zlab].params:
+							flux_array[z, i] = (results_object[zlab].params[label_boot1].value) # + \
+							#					   results_object[zlab].params[label_boot2].value) / 2
+							try:
+								error_array[z, i] = (results_object[zlab].params[label_boot1].stderr) # ** 2) + \
+								#						results_object[zlab].params[label_boot2].stderr ** 2) ** 0.5
+							except:
+								error_array[z, i] = 1e1
 
 			z_bins = [i.replace('p', '.').split('_')[1:] for i in self.config_dict['catalog']['distance_labels']]
 			z_mid = [(float(i[0]) + float(i[1]))/2 for i in z_bins]

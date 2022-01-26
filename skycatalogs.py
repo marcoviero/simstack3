@@ -45,6 +45,9 @@ class Skycatalogs:
 
 		self.split_table_into_populations()
 
+		# Remove full table from simstack_object (they're huge!)
+		self.catalog_dict['tables'].pop('full_table')
+
 	def split_table_into_populations(self):
 
 		# Make new table starting with RA and DEC
