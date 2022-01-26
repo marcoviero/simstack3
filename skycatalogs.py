@@ -48,14 +48,12 @@ class Skycatalogs:
 	def split_table_into_populations(self):
 
 		# Make new table starting with RA and DEC
-		#astrometry_keys = json.loads(self.config_dict['catalog']['astrometry'])
 		astrometry_keys = self.config_dict['catalog']['astrometry']
 		self.catalog_dict['tables']['split_table'] = {}
 		self.catalog_dict['tables']['split_table'] = pd.DataFrame(self.catalog_dict['tables']['full_table'][astrometry_keys.values()])
 		self.catalog_dict['tables']['split_table'].rename(columns={astrometry_keys["ra"]: "ra", astrometry_keys["dec"]: "dec"}, inplace=True)
 
 		# Split catalog by classification type
-		#split_dict = json.loads(self.config_dict['catalog']['classification'])
 		split_dict = self.config_dict['catalog']['classification']
 		split_type = split_dict.pop('split_type')
 
@@ -110,8 +108,9 @@ class Skycatalogs:
 			self.catalog_dict['tables']['parameter_labels'].append('background_layer')
 
 		self.config_dict['parameter_names'] = parameter_names
+		#pdb.set_trace()
 
-	def separate_sf_qt_uvj(self, split_dict, table, zcut=8):
+	def separate_sf_qt_uvj(self, split_dict, table, zcut=10):
 
 		uvkey = split_dict['split_params']["bins"]['U-V']
 		vjkey = split_dict['split_params']["bins"]['V-J']
@@ -132,7 +131,7 @@ class Skycatalogs:
 
 		self.separate_by_label(split_dict, table)
 
-	def separate_sf_qt_nuvrj(self, split_dict, table, zcut=8):
+	def separate_sf_qt_nuvrj(self, split_dict, table, zcut=10):
 
 		uvrkey = split_dict['split_params']["bins"]['UV-R']
 		rjkey = split_dict['split_params']["bins"]['R-J']

@@ -23,7 +23,6 @@ class SimstackResults(SimstackToolbox):
 		#split_dict = json.loads(self.config_dict['catalog']['classification'])
 		split_dict = self.config_dict['catalog']['classification']
 		#split_type = split_dict.pop('split_type')
-		#pdb.set_trace()
 		label_keys = list(split_dict.keys())
 		label_dict = self.config_dict['parameter_names']
 		ds = [len(label_dict[k]) for k in label_dict]

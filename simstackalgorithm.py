@@ -33,14 +33,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-        # Setup Uncerainties
-        # Bootstrap
-        if 'bootstrap' in self.config_dict['general']['error_estimator']:
-            if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
-                boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
-                print('Bootstrapping {} iterations'.format(boots))
-                #pdb.set_trace()
-
     def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False):
         '''
         perform_simstack takes the following steps:
@@ -63,11 +55,18 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         crop_circles = self.config_dict['general']['binning']['crop_circles']
         add_background = self.config_dict['general']['binning']['crop_circles']
 
+        # Bootstrap
+        if 'bootstrap' in self.config_dict['general']['error_estimator']:
+            if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
+                boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+                seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
+                print('Bootstrapping {} iterations'.format(boots))
+
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
 
         # Get binning details
-        binning = self.config_dict['general']['binning']
+        #binning = self.config_dict['general']['binning']
 
         split_dict = self.config_dict['catalog']['classification']
         #split_type = split_dict.pop('split_type')

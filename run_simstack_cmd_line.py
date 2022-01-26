@@ -52,25 +52,26 @@ def main():
         datefmt='%Y-%d-%m %I:%M:%S %p')
 
     # Flags
-    debug = True
-    add_background = False
-    crop_circles = True
+    #debug = True
+    #add_background = True
+    #crop_circles = True
 
     # Get parameters from the provided parameter file
     try:
         param_file_path = sys.argv[1]
     except:
-        param_file_path = os.path.join('config', 'example.ini')
+        param_file_path = os.path.join('config', 'cosmos2020.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
-                                      read_maps=True, read_catalog=True, debug=debug)
+                                      read_maps=True, read_catalog=True) #, debug=debug)
 
     print('Now Stacking', param_file_path)
     t0 = time.time()
 
     # Stack according to parameters in parameter file
-    simstack_object.perform_simstack(add_background=add_background, crop_circles=crop_circles)
+    #simstack_object.perform_simstack(add_background=add_background, crop_circles=crop_circles)
+    simstack_object.perform_simstack()
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)

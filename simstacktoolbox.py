@@ -73,7 +73,6 @@ class SimstackToolbox:
         # Write simmaps
         if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
             for wv in self.maps_dict:
-                #path_simmap = self.parse_path(self.config_dict['io']['output_folder'])
                 name_simmap = wv + '_simmap.fits'
                 hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
                 hdul = fits.HDUList([hdu])
