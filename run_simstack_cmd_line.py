@@ -37,6 +37,7 @@ Returned object contains:
 
 # Standard modules
 import os
+import pdb
 import sys
 import time
 import logging
@@ -51,27 +52,31 @@ def main():
         format='%(asctime)s  %(message)s',
         datefmt='%Y-%d-%m %I:%M:%S %p')
 
-    # Flags
-    #debug = True
-    #add_background = True
-    #crop_circles = True
-
     # Get parameters from the provided parameter file
     try:
         param_file_path = sys.argv[1]
     except:
-        param_file_path = os.path.join('config', 'cosmos2020_highz.ini')
+        param_file_path = os.path.join('config', 'cosmos2020.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
-                                      read_maps=True, read_catalog=True) #, debug=debug)
+                                      read_maps=True, read_catalog=True)
 
     print('Now Stacking', param_file_path)
     t0 = time.time()
 
     # Stack according to parameters in parameter file
-    #simstack_object.perform_simstack(add_background=add_background, crop_circles=crop_circles)
-    simstack_object.perform_simstack()
+    # Bootstrap
+    if 'bootstrap' in simstack_object.config_dict['general']['error_estimator']:
+        if simstack_object.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
+            boots = simstack_object.config_dict['general']['error_estimator']['bootstrap']['iterations']
+            seed = simstack_object.config_dict['general']['error_estimator']['bootstrap']['seed']
+            print('Bootstrapping {} iterations'.format(boots))
+    else:
+        boots = 0
+
+    for boot in range(boots + 1):
+        simstack_object.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)
@@ -81,11 +86,9 @@ def main():
     tpass = t1 - t0
 
     logging.info("Stacking Successful!")
-    logging.info("Find Results in {}".format(simstack_object.config_dict['pickles_path']))
+    logging.info("Find Results in {}".format(saved_pickle_path))
     logging.info("")
-    logging.info("Total time                        : {:.4f} minutes\n".format(tpass / 60.))
-
-    #pdb.set_trace()
+    logging.info("Total time  : {:.4f} minutes\n".format(tpass / 60.))
 
 if __name__ == "__main__":
     main()

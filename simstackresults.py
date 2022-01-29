@@ -17,7 +17,8 @@ class SimstackResults(SimstackToolbox):
 
 	def parse_results(self, beta_rj=1.8):
 
-		self.results_dict = {'maps_dict': {}}
+		#self.results_dict = {'maps_dict': {}}
+		#self.results_dict['maps_dict'] = {}
 		wavelength_keys = list(self.maps_dict.keys())
 		wavelengths = []
 		split_dict = self.config_dict['catalog']['classification']

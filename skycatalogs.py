@@ -27,13 +27,16 @@ class Skycatalogs:
 			> "labels"
 		--
 	'''
+
+	catalog_dict = {}
+
 	def __init__(self, config_dict):
 
 		self.config_dict = config_dict
 
 	def import_catalog(self):
 
-		self.catalog_dict = {}
+		#self.catalog_dict = {}
 
 		catalog_params = self.config_dict['catalog']
 		path_catalog = os.path.join(self.parse_path(catalog_params['path']), catalog_params['file'])

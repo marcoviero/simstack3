@@ -16,12 +16,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
     stack_successful = False
     config_dict = {}
+    #results_dict = {}
 
     def __init__(self, param_path_file):
         super().__init__()
 
         # Import parameters from config.ini file
         self.config_dict = self.get_params_dict(param_path_file)
+        self.results_dict = {}
 
         # Define Cosmologies and identify chosen cosmology from config.ini
         cosmology_key = self.config_dict['general']['cosmology']
@@ -34,7 +36,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, bootstrap=True):
+    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, bootstrap=0):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -56,12 +58,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         crop_circles = self.config_dict['general']['binning']['crop_circles']
         add_background = self.config_dict['general']['binning']['add_background']
 
-        # Bootstrap
-        if 'bootstrap' in self.config_dict['general']['error_estimator']:
-            if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
-                boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
-                seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
-                print('Bootstrapping {} iterations'.format(boots))
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
@@ -88,6 +84,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Stack in redshift slices if stack_all_z_at_once is False
         bins = json.loads(split_dict["redshift"]['bins'])
         distance_labels = []
+        if not bootstrap:
+            flux_density_key = 'stacked_flux_densities'
+            uncertainty_key = 'stacked_uncertainties'
+        else:
+            flux_density_key = 'bootstrap_flux_densities_'+str(bootstrap)
+            uncertainty_key = 'bootstrap_uncertainties_'+str(bootstrap)
+        print(flux_density_key)
+
         if stack_all_z_at_once == False:
             redshifts = catalog.pop("redshift")
             for i in np.unique(redshifts):
@@ -100,8 +104,17 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     labels = self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)]
                 if add_background:
                     labels.append("ones_background")
-                self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
+                cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
                                           crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+                for wv in cov_ss_out:
+                    if wv not in self.results_dict:
+                        self.results_dict[wv] = {}  #{flux_density_key: {}}
+                        #self.results_dict[wv] = {}  #{uncertainty_key: {}}
+                    #self.results_dict[wv][flux_density_key][distance_label] = cov_ss_out
+                    #self.results_dict[wv][flux_density_key].update(cov_ss_out[wv].params.valuesdict())
+                    #self.results_dict[wv][uncertainty_key].update(cov_ss_out[wv].params.valuesdict())
+                    self.results_dict[wv][flux_density_key].update(cov_ss_out[wv].params)
+                    self.results_dict[wv][uncertainty_key].update(cov_ss_out[wv].params)
         else:
             labels = []
             for i in np.unique(catalog['redshift']):
@@ -110,11 +123,28 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 else:
                     labels.extend(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
                 distance_labels.append("_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p'))
-                pdb.set_trace()
             if add_background:
                 labels.append("ones_background")
-            self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
+            cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
                                       crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+
+            for wv in cov_ss_out:
+                #self.results_dict[wv][flux_density_key] = {}
+                #param_keys = list(cov_ss_out[wv].params.keys())
+                #for i in np.unique(catalog['redshift']):
+                #    distance_label = "_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p')
+                #    self.results_dict[wv][distance_label] = {}
+                #    for iparam in param_keys:
+                #        if distance_label in iparam:
+                #            #self.results_dict[wv][distance_label]["__".join(iparam.split("__")[1:3])] = cov_ss_out[wv].params[iparam]
+                #            self.results_dict[wv][flux_density_key][distance_label]["__".join(iparam.split("__")[0:3])] = cov_ss_out[wv].params[iparam]
+                if wv not in self.results_dict:
+                    self.results_dict[wv] = {}  # {flux_density_key: {}}
+                    #self.results_dict[wv] = {}  # {uncertainty_key: {}}
+                #self.results_dict[wv][flux_density_key] = cov_ss_out[wv].params.valuesdict()
+                #self.results_dict[wv][uncertainty_key] = cov_ss_out[wv].params.valuesdict()
+                self.results_dict[wv][flux_density_key] = cov_ss_out[wv].params
+                self.results_dict[wv][uncertainty_key] = cov_ss_out[wv].params
 
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
@@ -169,10 +199,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             if bootstrap:
                                 if sum(ind_src) > 4:
                                     real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                                    jk_split = 0.75 #  np.random.uniform(0.3, 0.7)
+                                    bt_split = 0.80
+                                    jk_split = np.random.uniform(0.3, 0.7)
                                     #print('jackknife split = ', jk_split)
                                     left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
-                                                                                        test_size=jk_split,
+                                                                                        test_size=bt_split,
                                                                                         shuffle=True)
                                     layers[ilayer, left_x, left_y] += 1.0
                                     layers[ilayer + 1, right_x, right_y] += 1.0
@@ -197,10 +228,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                         if bootstrap:
                             if sum(ind_src) > 4:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                                jk_split = 0.75 #  np.random.uniform(0.3, 0.7)
+                                bt_split = 0.80
+                                jk_split = np.random.uniform(0.3, 0.7)
                                 #print('jackknife split = ', jk_split)
                                 left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
-                                                                                    test_size=jk_split,
+                                                                                    test_size=bt_split,
                                                                                     shuffle=True)
                                 layers[ilayer, left_x, left_y] += 1.0
                                 layers[ilayer + 1, right_x, right_y] += 1.0
@@ -225,9 +257,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 if bootstrap:
                     if sum(ind_src) > 4:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                        jk_split = 0.75 #  np.random.uniform(0.3, 0.7)
+                        bt_split = 0.80
+                        jk_split = np.random.uniform(0.3, 0.7)
                         #print('jackknife split = ', jk_split)
-                        left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=jk_split,
+                        left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
                                                                             shuffle=True)
                         layers[ilayer, left_x, left_y] += 1.0
                         layers[ilayer + 1, right_x, right_y] += 1.0
@@ -289,7 +322,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
             # Add layer to write_simmaps cube
             if "convolved_layer_cube" in map_dict:
-                map_dict["convolved_layer_cube"][umap, :, :] = tmap- np.mean(tmap[ind_fit])
+                map_dict["convolved_layer_cube"][umap, :, :] = tmap - np.mean(tmap[ind_fit])
 
             # If add_background=True, add background layer of ones.
         if add_background:
@@ -305,6 +338,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                              add_background=False, bootstrap=False):
 
         map_keys = list(self.maps_dict.keys())
+        cov_ss_dict = {}
         for wv in map_keys:
             map_dict = self.maps_dict[wv]
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
@@ -314,8 +348,13 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
             if 'stacked_flux_densities' not in self.maps_dict[wv]:
                 self.maps_dict[wv]['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
+                #cov_ss_dict[wv] = {'stacked_flux_densities': {distance_interval: cov_ss_1d}}
             else:
                 self.maps_dict[wv]['stacked_flux_densities'][distance_interval] = cov_ss_1d
+            cov_ss_dict[wv] = cov_ss_1d
+
+            #pdb.set_trace()
+            # Write simulated maps from best-fits
             if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
@@ -325,7 +364,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 self.maps_dict[wv]["flattened_simmap"] = np.sum(self.maps_dict[wv]["convolved_layer_cube"], axis=0)
                 if 'background_layer' in cube_dict['labels']:
                     self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
-
+        #pdb.set_trace()
+        return cov_ss_dict
 
     def regress_cube_layers(self, cube, labels=None):
 

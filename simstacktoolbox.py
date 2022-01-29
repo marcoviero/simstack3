@@ -34,7 +34,7 @@ class SimstackToolbox:
             if '__' not in i:
                 setattr(self, i, getattr(imported_object, i))
 
-    def save_stacked_fluxes(self, fp_in, overwrite_results=False):
+    def save_stacked_fluxes(self, fp_in, overwrite_results=False, shrink_file=True):
         if 'overwrite_results' in self.config_dict['io']:
             overwrite_results = self.config_dict['io']['overwrite_results']
 
@@ -58,6 +58,14 @@ class SimstackToolbox:
         print('pickling to ' + fpath)
         #self.fpath=fpath
         self.config_dict['pickles_path'] = fpath
+
+        # Get rid of large files
+        if shrink_file:
+            print('Removing maps_dict')
+            self.maps_dict = {}
+            print('Removing catalog_dict')
+            self.catalog_dict = {}
+
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
 
@@ -112,8 +120,9 @@ class SimstackToolbox:
             if 'background' in ilabel:
                 labels_out.append(ilabel)
             else:
-                labels_out.append(ilabel+'_bootstrap1')
-                labels_out.append(ilabel+'_bootstrap2')
+                #labels_out.append(ilabel+'__bootstrap1')
+                labels_out.append(ilabel)
+                labels_out.append(ilabel+'__bootstrap2')
         #pdb.set_trace()
         return labels_out
 
