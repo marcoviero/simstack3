@@ -16,14 +16,13 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
     stack_successful = False
     config_dict = {}
-    #results_dict = {}
 
     def __init__(self, param_path_file):
         super().__init__()
 
         # Import parameters from config.ini file
         self.config_dict = self.get_params_dict(param_path_file)
-        self.results_dict = {}
+        self.results_dict = {'band_results_dict': {}}
 
         # Define Cosmologies and identify chosen cosmology from config.ini
         cosmology_key = self.config_dict['general']['cosmology']
@@ -86,10 +85,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         distance_labels = []
         if not bootstrap:
             flux_density_key = 'stacked_flux_densities'
-            uncertainty_key = 'stacked_uncertainties'
+            #uncertainty_key = 'stacked_uncertainties'
         else:
             flux_density_key = 'bootstrap_flux_densities_'+str(bootstrap)
-            uncertainty_key = 'bootstrap_uncertainties_'+str(bootstrap)
+            #uncertainty_key = 'bootstrap_uncertainties_'+str(bootstrap)
         print(flux_density_key)
 
         if stack_all_z_at_once == False:
@@ -107,14 +106,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
                                           crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
                 for wv in cov_ss_out:
-                    if wv not in self.results_dict:
-                        self.results_dict[wv] = {}  #{flux_density_key: {}}
-                        #self.results_dict[wv] = {}  #{uncertainty_key: {}}
-                    #self.results_dict[wv][flux_density_key][distance_label] = cov_ss_out
-                    #self.results_dict[wv][flux_density_key].update(cov_ss_out[wv].params.valuesdict())
-                    #self.results_dict[wv][uncertainty_key].update(cov_ss_out[wv].params.valuesdict())
-                    self.results_dict[wv][flux_density_key].update(cov_ss_out[wv].params)
-                    self.results_dict[wv][uncertainty_key].update(cov_ss_out[wv].params)
+                    if wv not in self.results_dict['band_results_dict']:
+                        self.results_dict['band_results_dict'][wv] = {}
+                    if flux_density_key not in self.results_dict['band_results_dict'][wv]:
+                        self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
+                        #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
+                    else:
+                        self.results_dict['band_results_dict'][wv][flux_density_key].update(cov_ss_out[wv].params)
+                        #self.results_dict['band_results_dict'][wv][uncertainty_key].update(cov_ss_out[wv].params)
         else:
             labels = []
             for i in np.unique(catalog['redshift']):
@@ -129,22 +128,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                       crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
 
             for wv in cov_ss_out:
-                #self.results_dict[wv][flux_density_key] = {}
-                #param_keys = list(cov_ss_out[wv].params.keys())
-                #for i in np.unique(catalog['redshift']):
-                #    distance_label = "_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p')
-                #    self.results_dict[wv][distance_label] = {}
-                #    for iparam in param_keys:
-                #        if distance_label in iparam:
-                #            #self.results_dict[wv][distance_label]["__".join(iparam.split("__")[1:3])] = cov_ss_out[wv].params[iparam]
-                #            self.results_dict[wv][flux_density_key][distance_label]["__".join(iparam.split("__")[0:3])] = cov_ss_out[wv].params[iparam]
-                if wv not in self.results_dict:
-                    self.results_dict[wv] = {}  # {flux_density_key: {}}
-                    #self.results_dict[wv] = {}  # {uncertainty_key: {}}
-                #self.results_dict[wv][flux_density_key] = cov_ss_out[wv].params.valuesdict()
-                #self.results_dict[wv][uncertainty_key] = cov_ss_out[wv].params.valuesdict()
-                self.results_dict[wv][flux_density_key] = cov_ss_out[wv].params
-                self.results_dict[wv][uncertainty_key] = cov_ss_out[wv].params
+                if wv not in self.results_dict['band_results_dict']:
+                    self.results_dict['band_results_dict'][wv] = {}
+                self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
+                #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
 
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
@@ -340,30 +327,28 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         map_keys = list(self.maps_dict.keys())
         cov_ss_dict = {}
         for wv in map_keys:
-            map_dict = self.maps_dict[wv]
+            map_dict = self.maps_dict[wv].copy()
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
                                         add_background=add_background, bootstrap=bootstrap)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
-            if 'stacked_flux_densities' not in self.maps_dict[wv]:
-                self.maps_dict[wv]['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
-                #cov_ss_dict[wv] = {'stacked_flux_densities': {distance_interval: cov_ss_1d}}
+            if 'stacked_flux_densities' not in map_dict:
+                map_dict['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
             else:
-                self.maps_dict[wv]['stacked_flux_densities'][distance_interval] = cov_ss_1d
+                map_dict['stacked_flux_densities'][distance_interval] = cov_ss_1d
             cov_ss_dict[wv] = cov_ss_1d
 
-            #pdb.set_trace()
             # Write simulated maps from best-fits
             if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
                     if 'background' not in iparam_label:
-                        self.maps_dict[wv]["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
+                        map_dict["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
 
-                self.maps_dict[wv]["flattened_simmap"] = np.sum(self.maps_dict[wv]["convolved_layer_cube"], axis=0)
+                map_dict["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
                 if 'background_layer' in cube_dict['labels']:
-                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
+                    map_dict["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
         #pdb.set_trace()
         return cov_ss_dict
 

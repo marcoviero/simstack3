@@ -39,13 +39,12 @@ class SimstackWrapper(SimstackAlgorithm):
 
         if stack_automatically:
             # Bootstrap
+            boots = 0
             if 'bootstrap' in self.config_dict['general']['error_estimator']:
                 if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
                     boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
                     seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
                     print('Bootstrapping {} iterations'.format(boots))
-            else:
-                boots = 0
 
             for boot in range(boots+1):
                 self.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py

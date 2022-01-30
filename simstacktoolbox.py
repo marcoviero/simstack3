@@ -56,7 +56,6 @@ class SimstackToolbox:
         fpath = os.path.join(out_file_path, shortname + '.pkl')
 
         print('pickling to ' + fpath)
-        #self.fpath=fpath
         self.config_dict['pickles_path'] = fpath
 
         # Get rid of large files
@@ -171,7 +170,8 @@ class SimstackToolbox:
     def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, redshiftin=0):
         fit_params = Parameters()
         fit_params.add('A', value=1e-32, vary=True)
-        fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
+        #fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
+        fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True)
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
 
