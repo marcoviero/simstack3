@@ -45,6 +45,7 @@ Within the simstack environment (i.e., after **conda activate simstack**), insta
 - pandas (> conda install pandas)
 - astropy (> conda install astropy)
 - lmfit (> conda install -c conda-forge lmfit)
+- sklearn (> conda install scikit-learn)
 - jupyterlab, if you want to use notebooks
 
 ## Usage

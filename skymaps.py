@@ -16,14 +16,17 @@ class Skymaps:
 	- path_map (str)
 	- path_noise (str)
 	'''
+
+	maps_dict = {}
+
 	def __init__(self):
 		pass
 
 	def import_maps(self):
 
-		self.maps_dict = {}
+		#self.maps_dict = {}
 		for imap in self.config_dict['maps']:
-			map_params = self.config_dict['maps'][imap]
+			map_params = self.config_dict['maps'][imap].copy()  # otherwise seems to make a copy in config_dict (??)
 			map_dict = self.import_map_dict(map_params)
 			self.maps_dict[imap] = map_dict
 

@@ -38,7 +38,16 @@ class SimstackWrapper(SimstackAlgorithm):
             self.import_maps()  # This happens in skymaps.py
 
         if stack_automatically:
-            self.perform_simstack()  # This happens in simstackalgorithm.py
+            # Bootstrap
+            boots = 0
+            if 'bootstrap' in self.config_dict['general']['error_estimator']:
+                if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
+                    boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+                    seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
+                    print('Bootstrapping {} iterations'.format(boots))
+
+            for boot in range(boots+1):
+                self.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
 
         if self.stack_successful and parse_automatically:
             results_object = SimstackResults(self)

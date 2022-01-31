@@ -34,7 +34,7 @@ class SimstackToolbox:
             if '__' not in i:
                 setattr(self, i, getattr(imported_object, i))
 
-    def save_stacked_fluxes(self, fp_in, overwrite_results=False):
+    def save_stacked_fluxes(self, fp_in, overwrite_results=False, shrink_file=True):
         if 'overwrite_results' in self.config_dict['io']:
             overwrite_results = self.config_dict['io']['overwrite_results']
 
@@ -56,8 +56,15 @@ class SimstackToolbox:
         fpath = os.path.join(out_file_path, shortname + '.pkl')
 
         print('pickling to ' + fpath)
-        #self.fpath=fpath
         self.config_dict['pickles_path'] = fpath
+
+        # Get rid of large files
+        if shrink_file:
+            print('Removing maps_dict')
+            self.maps_dict = {}
+            print('Removing catalog_dict')
+            self.catalog_dict = {}
+
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
 
@@ -106,6 +113,19 @@ class SimstackToolbox:
                 else:
                     return path_env + os.path.join('/', *path_in[1:])
 
+    def split_bootstrap_labels(self, labels):
+        labels_out = []
+        for ilabel in labels:
+            if 'background' in ilabel:
+                labels_out.append(ilabel)
+            else:
+                #labels_out.append(ilabel+'__bootstrap1')
+                labels_out.append(ilabel)
+                labels_out.append(ilabel+'__bootstrap2')
+        #pdb.set_trace()
+        return labels_out
+
+
     def get_params_dict(self, param_file_path):
         config = ConfigParser()
         config.read(param_file_path)
@@ -150,7 +170,9 @@ class SimstackToolbox:
     def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, redshiftin=0):
         fit_params = Parameters()
         fit_params.add('A', value=1e-32, vary=True)
-        fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
+        #fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
+        #fit_params.add('T_observed', value=20.0+0.3*(redshiftin), vary=True)
+        fit_params.add('T_observed', value=18, vary=True)
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
 
@@ -159,7 +181,7 @@ class SimstackToolbox:
 
         sed_params = minimize(self.find_sed_min, fit_params,
                               args=(wavelengths,),
-                              kws={'fluxes': fluxin, 'covar': covar**2})
+                              kws={'fluxes': fluxin, 'covar': covar})
         #pdb.set_trace()
         m = sed_params.params
 

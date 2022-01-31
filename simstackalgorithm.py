@@ -6,6 +6,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.cosmology import Planck18 as planck18
 from astropy.cosmology import Planck15 as planck15
+from sklearn.model_selection import train_test_split
 from lmfit import Parameters, minimize, fit_report
 from skymaps import Skymaps
 from skycatalogs import Skycatalogs
@@ -21,6 +22,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         # Import parameters from config.ini file
         self.config_dict = self.get_params_dict(param_path_file)
+        self.results_dict = {'band_results_dict': {}}
 
         # Define Cosmologies and identify chosen cosmology from config.ini
         cosmology_key = self.config_dict['general']['cosmology']
@@ -33,7 +35,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False):
+    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, bootstrap=0):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -55,12 +57,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         crop_circles = self.config_dict['general']['binning']['crop_circles']
         add_background = self.config_dict['general']['binning']['add_background']
 
-        # Bootstrap
-        if 'bootstrap' in self.config_dict['general']['error_estimator']:
-            if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
-                boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
-                seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
-                print('Bootstrapping {} iterations'.format(boots))
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
@@ -87,31 +83,61 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         # Stack in redshift slices if stack_all_z_at_once is False
         bins = json.loads(split_dict["redshift"]['bins'])
         distance_labels = []
+        if not bootstrap:
+            flux_density_key = 'stacked_flux_densities'
+            #uncertainty_key = 'stacked_uncertainties'
+        else:
+            flux_density_key = 'bootstrap_flux_densities_'+str(bootstrap)
+            #uncertainty_key = 'bootstrap_uncertainties_'+str(bootstrap)
+        print(flux_density_key)
+
         if stack_all_z_at_once == False:
             redshifts = catalog.pop("redshift")
             for i in np.unique(redshifts):
                 catalog_in = catalog[redshifts == i]
                 distance_label = "_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p')
                 distance_labels.append(distance_label)
-                labels = self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)]
+                if bootstrap:
+                    labels = self.split_bootstrap_labels(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
+                else:
+                    labels = self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)]
                 if add_background:
                     labels.append("ones_background")
-                self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
-                                          crop_circles=crop_circles, add_background=add_background)
+                cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
+                                          crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+                for wv in cov_ss_out:
+                    if wv not in self.results_dict['band_results_dict']:
+                        self.results_dict['band_results_dict'][wv] = {}
+                    if flux_density_key not in self.results_dict['band_results_dict'][wv]:
+                        self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
+                        #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
+                    else:
+                        self.results_dict['band_results_dict'][wv][flux_density_key].update(cov_ss_out[wv].params)
+                        #self.results_dict['band_results_dict'][wv][uncertainty_key].update(cov_ss_out[wv].params)
         else:
             labels = []
             for i in np.unique(catalog['redshift']):
-                labels.extend(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
+                if bootstrap:
+                    labels = self.split_bootstrap_labels(self.catalog_dict['tables']['parameter_labels'])
+                else:
+                    labels.extend(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
                 distance_labels.append("_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p'))
             if add_background:
                 labels.append("ones_background")
-            self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
-                                      crop_circles=crop_circles, add_background=add_background)
+            cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
+                                      crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+
+            for wv in cov_ss_out:
+                if wv not in self.results_dict['band_results_dict']:
+                    self.results_dict['band_results_dict'][wv] = {}
+                self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
+                #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
 
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
 
-    def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, write_fits_layers=False):
+    def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
+                   write_fits_layers=False):
 
         cmap = map_dict['map']
         cnoise = map_dict['noise']
@@ -130,15 +156,23 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         label_dict = self.config_dict['parameter_names']
         ds = [len(label_dict[k]) for k in label_dict]
-        if len(labels) == np.prod(ds[1:]) + add_background:
+        if (len(labels) - add_background) == np.prod(ds[1:]):
             nlists = ds[1:]
+            llists = np.prod(nlists)
+        elif (len(labels) - add_background)/2 == np.prod(ds[1:]):
+            nlists = ds[1:]
+            llists = 2 * np.prod(nlists)
+        elif (len(labels) - add_background)/2 == np.prod(ds):
+            nlists = ds
+            llists = 2 * np.prod(nlists)
         else:
             nlists = ds
+            llists = np.prod(nlists)
 
         if np.sum(cnoise) == 0: cnoise = cmap * 0.0 + 1.0
 
         # STEP 1  - Make Layers Cube
-        layers = np.zeros([np.prod(nlists), cms[0], cms[1]])
+        layers = np.zeros([llists, cms[0], cms[1]])
 
         trimmed_labels = []
         ilayer = 0
@@ -149,6 +183,54 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     if len(nlists) > 2:
                         for kpop in range(nlists[2]):
                             ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & (catalog[keys[2]] == kpop)
+                            if bootstrap:
+                                if sum(ind_src) > 4:
+                                    real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                    bt_split = 0.80
+                                    jk_split = np.random.uniform(0.3, 0.7)
+                                    #print('jackknife split = ', jk_split)
+                                    left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
+                                                                                        test_size=bt_split,
+                                                                                        shuffle=True)
+                                    layers[ilayer, left_x, left_y] += 1.0
+                                    layers[ilayer + 1, right_x, right_y] += 1.0
+                                    trimmed_labels.append(labels[ilabel])
+                                    trimmed_labels.append(labels[ilabel + 1])
+                                    ilayer += 2
+                                else:
+                                    layers = np.delete(layers, ilayer+1, 0)
+                                    layers = np.delete(layers, ilayer, 0)
+                                ilabel += 2
+                            else:
+                                if sum(ind_src) > 0:
+                                    real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                    layers[ilayer, real_x, real_y] += 1.0
+                                    trimmed_labels.append(labels[ilabel])
+                                    ilayer += 1
+                                else:
+                                    layers = np.delete(layers, ilayer, 0)
+                                ilabel += 1
+                    else:
+                        ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop)
+                        if bootstrap:
+                            if sum(ind_src) > 4:
+                                real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                bt_split = 0.80
+                                jk_split = np.random.uniform(0.3, 0.7)
+                                #print('jackknife split = ', jk_split)
+                                left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
+                                                                                    test_size=bt_split,
+                                                                                    shuffle=True)
+                                layers[ilayer, left_x, left_y] += 1.0
+                                layers[ilayer + 1, right_x, right_y] += 1.0
+                                trimmed_labels.append(labels[ilabel])
+                                trimmed_labels.append(labels[ilabel+1])
+                                ilayer += 2
+                            else:
+                                layers = np.delete(layers, ilayer+1, 0)
+                                layers = np.delete(layers, ilayer, 0)
+                            ilabel += 2
+                        else:
                             if sum(ind_src) > 0:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                 layers[ilayer, real_x, real_y] += 1.0
@@ -157,26 +239,34 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             else:
                                 layers = np.delete(layers, ilayer, 0)
                             ilabel += 1
-                    else:
-                        ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop)
-                        if sum(ind_src) > 0:
-                            real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                            layers[ilayer, real_x, real_y] += 1.0
-                            trimmed_labels.append(labels[ilabel])
-                            ilayer += 1
-                        else:
-                            layers = np.delete(layers, ilayer, 0)
-                        ilabel += 1
             else:
                 ind_src = (catalog[keys[0]] == ipop)
-                if sum(ind_src) > 0:
-                    real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                    layers[ilayer, real_x, real_y] += 1.0
-                    trimmed_labels.append(labels[ilabel])
-                    ilayer += 1
+                if bootstrap:
+                    if sum(ind_src) > 4:
+                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                        bt_split = 0.80
+                        jk_split = np.random.uniform(0.3, 0.7)
+                        #print('jackknife split = ', jk_split)
+                        left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
+                                                                            shuffle=True)
+                        layers[ilayer, left_x, left_y] += 1.0
+                        layers[ilayer + 1, right_x, right_y] += 1.0
+                        trimmed_labels.append(labels[ilabel])
+                        trimmed_labels.append(labels[ilabel + 1])
+                        ilayer += 2
+                    else:
+                        layers = np.delete(layers, ilayer + 1, 0)
+                        layers = np.delete(layers, ilayer, 0)
+                    ilabel += 2
                 else:
-                    layers = np.delete(layers, ilayer, 0)
-                ilabel += 1
+                    if sum(ind_src) > 0:
+                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                        layers[ilayer, real_x, real_y] += 1.0
+                        trimmed_labels.append(labels[ilabel])
+                        ilayer += 1
+                    else:
+                        layers = np.delete(layers, ilayer, 0)
+                    ilabel += 1
 
         nlayers = np.shape(layers)[0]
 
@@ -219,7 +309,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
             # Add layer to write_simmaps cube
             if "convolved_layer_cube" in map_dict:
-                map_dict["convolved_layer_cube"][umap, :, :] = tmap- np.mean(tmap[ind_fit])
+                map_dict["convolved_layer_cube"][umap, :, :] = tmap - np.mean(tmap[ind_fit])
 
             # If add_background=True, add background layer of ones.
         if add_background:
@@ -231,29 +321,36 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
-    def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, crop_circles=False, add_background=False):
+    def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, crop_circles=False,
+                             add_background=False, bootstrap=False):
 
         map_keys = list(self.maps_dict.keys())
+        cov_ss_dict = {}
         for wv in map_keys:
-            map_dict = self.maps_dict[wv]
-            cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles, add_background=add_background)
+            map_dict = self.maps_dict[wv].copy()
+            cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
+                                        add_background=add_background, bootstrap=bootstrap)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
-            if 'stacked_flux_densities' not in self.maps_dict[wv]:
-                self.maps_dict[wv]['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
+            if 'stacked_flux_densities' not in map_dict:
+                map_dict['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
             else:
-                self.maps_dict[wv]['stacked_flux_densities'][distance_interval] = cov_ss_1d
+                map_dict['stacked_flux_densities'][distance_interval] = cov_ss_1d
+            cov_ss_dict[wv] = cov_ss_1d
+
+            # Write simulated maps from best-fits
             if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
                     if 'background' not in iparam_label:
-                        self.maps_dict[wv]["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
+                        map_dict["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
 
-                self.maps_dict[wv]["flattened_simmap"] = np.sum(self.maps_dict[wv]["convolved_layer_cube"], axis=0)
+                map_dict["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
                 if 'background_layer' in cube_dict['labels']:
-                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
-
+                    map_dict["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
+        #pdb.set_trace()
+        return cov_ss_dict
 
     def regress_cube_layers(self, cube, labels=None):
 
@@ -278,7 +375,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                              args=(np.ndarray.flatten(cube),),
                              kws={'data1d': np.ndarray.flatten(imap), 'err1d': np.ndarray.flatten(ierr)},
                              nan_policy='propagate')
-
         return cov_ss_1d
 
     def simultaneous_stack_array_oned(self, p, layers_1d, data1d, err1d=None, arg_order=None):
