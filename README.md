@@ -46,6 +46,7 @@ Within the simstack environment (i.e., after **conda activate simstack**), insta
 - astropy (> conda install astropy)
 - lmfit (> conda install -c conda-forge lmfit)
 - sklearn (> conda install scikit-learn)
+- emcee (> conda install emcee)  
 - jupyterlab, if you want to use notebooks
 
 ## Usage
@@ -54,13 +55,13 @@ The code centers around the configuration file, config.ini (or whatever name you
 
 We use uvista.ini as an example of the format. The configuration file has the following sections:
 #### general
-> binning = {"stack_all_z_at_once": 0, "add_background": 1}
-- stack_all_z_at_once: True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
-
-> error_estimator = {"bootstrap": {"seed": 42, "iterations": 0}, "emcee": 0}
-- bootstrap: Errors derived via. bootstrap (not working yet)
-- emcee: Errors derived via. MCMC (not working yet)
-
+> binning = {"stack_all_z_at_once": 0, "add_background": 1, "crop_circles": 1}
+- stack_all_z_at_once: (default True) True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
+- add_background: (default True) Adds an additional layer, a background of all 1's, to the simultaneous stack.
+- crop_circles: (default True) draw circles around each source in each layer and flatten, keeping only pixels in fit.
+> error_estimator = {"bootstrap": {"seed": 42, "iterations": 0}, "write_simmaps": 0}
+- bootstrap: Errors derived via. bootstrap. 
+- write_simmaps: Write simulated image, e.g. each layer summed together, at each wavelength.
 > cosmology = Planck18
 - Options are: Planck15, Planck18
 
