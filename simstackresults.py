@@ -186,8 +186,12 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['SED'][zlab][jlab] = {}
 						for i, ilab in enumerate(label_dict[label_keys[1]]):
 							tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i, j],
-														 sed_error_array[:, z, i, j],
+														 sed_error_array[:, z, i, j]**2,
 														 betain=beta_rj, redshiftin=z_mid)
+							#tst_m = self.fast_sed_fitter(wavelengths, self.clean_nans(np.log10(sed_flux_array[:, z, i, j])),
+							#							 self.clean_nans(np.log10(sed_error_array[:, z, i, j]**2),
+							#											 replacement_char=1e1),
+							#							 betain=beta_rj, redshiftin=z_mid)
 							tst_LIR = self.fast_Lir(tst_m, z_mid)
 							self.results_dict['SED_df']['LIR'][zlab][jlab][ilab] = tst_LIR.value
 							self.results_dict['SED_df']['SED'][zlab][jlab][ilab] = tst_m

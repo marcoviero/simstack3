@@ -46,12 +46,12 @@ class Skycatalogs:
 			print("Catalog not found: "+path_catalog)
 			pdb.set_trace()
 
-		self.split_table_into_populations()
+		self.split_table_into_populations(qg_zcut=4)
 
 		# Remove full table from simstack_object (they're huge!)
 		self.catalog_dict['tables'].pop('full_table')
 
-	def split_table_into_populations(self):
+	def split_table_into_populations(self, qg_zcut=10):
 
 		# Make new table starting with RA and DEC
 		astrometry_keys = self.config_dict['catalog']['astrometry']
@@ -73,7 +73,7 @@ class Skycatalogs:
 
 		# By nuvrj means it splits into star-forming and quiescent galaxies via the NUV-r/r-j method.
 		if 'nuvrj' in split_type:
-			self.separate_sf_qt_nuvrj(split_dict, self.catalog_dict['tables']['full_table'])
+			self.separate_sf_qt_nuvrj(split_dict, self.catalog_dict['tables']['full_table'], qg_zcut=qg_zcut)
 
 	def separate_by_label(self, split_dict, table, add_background=False):
 		parameter_names = {}
@@ -116,7 +116,7 @@ class Skycatalogs:
 		self.config_dict['parameter_names'] = parameter_names
 		#pdb.set_trace()
 
-	def separate_sf_qt_uvj(self, split_dict, table, zcut=10):
+	def separate_sf_qt_uvj(self, split_dict, table, qg_zcut=10):
 
 		uvkey = split_dict['split_params']["bins"]['U-V']
 		vjkey = split_dict['split_params']["bins"]['V-J']
@@ -126,7 +126,7 @@ class Skycatalogs:
 		ind_zlt1 = (table[uvkey] > 1.3) & (table[vjkey] < 1.5) & (table[zkey] < 1) & \
 				   (table[uvkey] > (table[vjkey] * 0.88 + 0.69))
 		ind_zgt1 = (table[uvkey] > 1.3) & (table[vjkey] < 1.5) & (table[zkey] >= 1) & \
-				   (table[zkey] < zcut) & (table[uvkey] > (table[vjkey] * 0.88 + 0.59))
+				   (table[zkey] < qg_zcut) & (table[uvkey] > (table[vjkey] * 0.88 + 0.59))
 
 		# Add sfg column
 		sfg = np.ones(len(table))
@@ -137,14 +137,14 @@ class Skycatalogs:
 
 		self.separate_by_label(split_dict, table)
 
-	def separate_sf_qt_nuvrj(self, split_dict, table, zcut=10):
+	def separate_sf_qt_nuvrj(self, split_dict, table, qg_zcut=10):
 
 		uvrkey = split_dict['split_params']["bins"]['UV-R']
 		rjkey = split_dict['split_params']["bins"]['R-J']
 		zkey = split_dict['redshift']["id"]
 
 		# Find quiescent galaxies using NUV-r/r-J criteria
-		ind_nuvrj = (table[uvrkey] > (3*table[rjkey] + 1)) & (table[uvrkey] > 3.1) & (table[zkey] < zcut)
+		ind_nuvrj = (table[uvrkey] > (3*table[rjkey] + 1)) & (table[uvrkey] > 3.1) & (table[zkey] < qg_zcut)
 
 		# Add sfg column
 		sfg = np.ones(len(table))

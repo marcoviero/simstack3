@@ -171,7 +171,8 @@ class SimstackToolbox:
         fit_params = Parameters()
         fit_params.add('A', value=1e-32, vary=True)
         #fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
-        fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True)
+        #fit_params.add('T_observed', value=20.0+0.3*(redshiftin), vary=True)
+        fit_params.add('T_observed', value=18, vary=True)
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
 
@@ -180,7 +181,7 @@ class SimstackToolbox:
 
         sed_params = minimize(self.find_sed_min, fit_params,
                               args=(wavelengths,),
-                              kws={'fluxes': fluxin, 'covar': covar**2})
+                              kws={'fluxes': fluxin, 'covar': covar})
         #pdb.set_trace()
         m = sed_params.params
 
