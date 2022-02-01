@@ -214,6 +214,7 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['SED'][zlab][ilab] = tst_m
 
 	def plot_seds(self):
+		colors = ['y', 'c', 'b', 'r']
 		if self.results_dict['SED_df']['plot_sed']:
 			zlen = len(self.results_dict['SED_df']['flux_density'])
 			if len(self.config_dict['parameter_names']) == 3:
@@ -226,9 +227,9 @@ class SimstackResults(SimstackToolbox):
 						# pdb.set_trace()
 						sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
 						std = self.results_dict['SED_df']['std_error'][zlab][plab]
-						for mlab in sed:
-							axs[p, z].scatter(sed.index, sed[mlab])
-							axs[p, z].errorbar(sed.index, sed[mlab], std[mlab], 0, 'none')
+						for im, mlab in enumerate(sed):
+							axs[p, z].scatter(sed.index, sed[mlab], color=colors[im])
+							axs[p, z].errorbar(sed.index, sed[mlab], std[mlab], 0, 'none', color=colors[im])
 							# axs[p, z].plot(sed.index, sed[mlab], label=mlab)
 
 							# pdb.set_trace()
@@ -244,10 +245,10 @@ class SimstackResults(SimstackToolbox):
 							line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
 										  "LIR={:.1f}".format(np.log10(LIR))]
 							if LIR > 0:
-								axs[p, z].plot(wv_array, sed_array[0], label=line_label)
+								axs[p, z].plot(wv_array, sed_array[0], label=line_label, color=colors[im])
 								axs[p, z].legend(loc='upper right')
 							else:
-								axs[p, z].plot(wv_array, sed_array[0])
+								axs[p, z].plot(wv_array, sed_array[0], color=colors[im])
 
 							if not p:
 								axs[p, z].set_title(zlab)

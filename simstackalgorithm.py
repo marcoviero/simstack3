@@ -187,10 +187,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                 if sum(ind_src) > 4:
                                     real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                     bt_split = 0.80
-                                    jk_split = np.random.uniform(0.3, 0.7)
+                                    #jk_split = np.random.uniform(0.3, 0.7)
                                     #print('jackknife split = ', jk_split)
                                     left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
                                                                                         test_size=bt_split,
+                                                                                        random_state=int(bootstrap),
                                                                                         shuffle=True)
                                     layers[ilayer, left_x, left_y] += 1.0
                                     layers[ilayer + 1, right_x, right_y] += 1.0
@@ -216,10 +217,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             if sum(ind_src) > 4:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                 bt_split = 0.80
-                                jk_split = np.random.uniform(0.3, 0.7)
+                                #jk_split = np.random.uniform(0.3, 0.7)
                                 #print('jackknife split = ', jk_split)
                                 left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
                                                                                     test_size=bt_split,
+                                                                                    random_state=int(bootstrap),
                                                                                     shuffle=True)
                                 layers[ilayer, left_x, left_y] += 1.0
                                 layers[ilayer + 1, right_x, right_y] += 1.0
@@ -245,9 +247,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     if sum(ind_src) > 4:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                         bt_split = 0.80
-                        jk_split = np.random.uniform(0.3, 0.7)
+                        #jk_split = np.random.uniform(0.3, 0.7)
                         #print('jackknife split = ', jk_split)
                         left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
+                                                                            random_state=int(bootstrap),
                                                                             shuffle=True)
                         layers[ilayer, left_x, left_y] += 1.0
                         layers[ilayer + 1, right_x, right_y] += 1.0

@@ -67,16 +67,19 @@ def main():
 
     # Stack according to parameters in parameter file
     # Bootstrap
+    num_boots = 0
     if 'bootstrap' in simstack_object.config_dict['general']['error_estimator']:
         if simstack_object.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
-            boots = simstack_object.config_dict['general']['error_estimator']['bootstrap']['iterations']
-            seed = simstack_object.config_dict['general']['error_estimator']['bootstrap']['seed']
-            print('Bootstrapping {} iterations'.format(boots))
-    else:
-        boots = 0
+            num_boots = simstack_object.config_dict['general']['error_estimator']['bootstrap']['iterations']
+            init_boot = simstack_object.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
+            print('Bootstrapping {} iterations starting at {}'.format(num_boots, init_boot))
 
-    for boot in range(boots + 1):
-        simstack_object.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
+    for boot in range(num_boots + 1):
+        if boot:
+            boot_in = boot - 1 + init_boot
+            simstack_object.perform_simstack(bootstrap=boot_in)
+        else:
+            simstack_object.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)

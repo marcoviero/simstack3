@@ -39,15 +39,19 @@ class SimstackWrapper(SimstackAlgorithm):
 
         if stack_automatically:
             # Bootstrap
-            boots = 0
+            num_boots = 0
             if 'bootstrap' in self.config_dict['general']['error_estimator']:
                 if self.config_dict['general']['error_estimator']['bootstrap']['iterations'] > 0:
-                    boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
-                    seed = self.config_dict['general']['error_estimator']['bootstrap']['seed']
-                    print('Bootstrapping {} iterations'.format(boots))
+                    num_boots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+                    init_boot = self.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
+                    print('Bootstrapping {} iterations starting at {}'.format(num_boots, init_boot))
 
-            for boot in range(boots+1):
-                self.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
+            for boot in range(num_boots + 1):
+                if boot:
+                    boot_in = boot - 1 + init_boot
+                    self.perform_simstack(bootstrap=boot_in)
+                else:
+                    self.perform_simstack(bootstrap=boot)  # This happens in simstackalgorithm.py
 
         if self.stack_successful and parse_automatically:
             results_object = SimstackResults(self)
