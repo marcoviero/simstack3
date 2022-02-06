@@ -2,6 +2,7 @@ import pdb
 import json
 import numpy as np
 import pandas as pd
+import emcee
 import matplotlib.pyplot as plt
 from simstacktoolbox import SimstackToolbox
 
@@ -15,14 +16,31 @@ class SimstackResults(SimstackToolbox):
 			if '__' not in i:
 				setattr(self, i, getattr(SimstackResultsObject, i))
 
-	def parse_results(self, beta_rj=1.8):
+	def parse_results(self, beta_rj=1.8, catalog_object=None, estimate_mcmcs=False, plot_seds=False):
 
 		fluxes_dict = self.parse_fluxes()
 		if len(fluxes_dict['wavelengths']) > 1:
 			self.parse_seds(fluxes_dict, beta_rj=beta_rj)
+			self.results_dict['bootstrap_results_dict'] = self.populate_results_dict()
+
+			if estimate_mcmcs:
+				#pdb.set_trace()
+				if 'tables' not in self.catalog_dict:
+					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'], catalog_object.catalog_dict['tables']['split_table'], plot_seds=plot_seds)
+				else:
+					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'], plot_seds=plot_seds)
+
 		else:
 			print("Skipping SED estimates because only single wavelength measured.")
 			self.results_dict['SED_df'] = {'plot_sed': False}
+
+	def plot_lir_density(self, area_deg2, lir_dict=None):
+
+		self.estimate_luminosity_density(area_deg2, lir_dict=lir_dict)
+
+	def plot_total_lird(self, lird_dict=None, plot_lird=False, plot_sfrd=False):
+
+		self.results_dict['total_lird_dict'] = self.estimate_total_lird(lird_dict=lird_dict, plot_lird=plot_lird, plot_sfrd=plot_sfrd)
 
 	def parse_fluxes(self):
 
@@ -212,6 +230,191 @@ class SimstackResults(SimstackToolbox):
 
 						self.results_dict['SED_df']['LIR'][zlab][ilab] = tst_LIR.value
 						self.results_dict['SED_df']['SED'][zlab][ilab] = tst_m
+
+	def populate_results_dict(self, atonce_object=None):
+		band_keys = list(self.config_dict['maps'].keys())
+		bin_keys = list(self.config_dict['parameter_names'].keys())
+		print(band_keys)
+		print(bin_keys)
+		flux_dict = {}
+		boot_dict = {}
+		for band_label in band_keys:
+			boots = len(self.results_dict['band_results_dict'][band_label].keys()) - 2
+			ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+			flux_array = np.zeros([*ds])
+			boot_array = np.zeros([boots, *ds])
+			wv = self.config_dict['maps'][band_label]['wavelength']
+			for iboot in range(boots):
+				flux_label = 'stacked_flux_densities'
+				boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
+				# print(boot_label)
+				for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+					for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+						if len(self.config_dict['parameter_names']) > 2:
+							for ipop, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+								label = "__".join([zlab, mlab, plab]).replace(".", "p")
+								if not iboot:
+									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
+										if atonce_object is not None:
+											pdb.set_trace()
+											flux_array[iz, im, ipop] = \
+											atonce_object.results_dict['band_results_dict'][band_label][flux_label][
+												label]
+										else:
+											flux_array[iz, im, ipop] = \
+											self.results_dict['band_results_dict'][band_label][flux_label][label]
+								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
+									boot_array[iboot, iz, im, ipop] = \
+									self.results_dict['band_results_dict'][band_label][boot_label][label]
+
+			flux_dict[wv] = flux_array
+			boot_dict[wv] = boot_array
+
+		# Group into SEDs
+		sf_sed_array = np.zeros([boots, len(boot_dict), len(self.config_dict['parameter_names'][bin_keys[0]]),
+								 len(self.config_dict['parameter_names'][bin_keys[1]])])
+		qt_sed_array = np.zeros([boots, len(boot_dict), len(self.config_dict['parameter_names'][bin_keys[0]]),
+								 len(self.config_dict['parameter_names'][bin_keys[1]])])
+		sf_sed_measurement = np.zeros([len(boot_dict), len(self.config_dict['parameter_names'][bin_keys[0]]),
+									   len(self.config_dict['parameter_names'][bin_keys[1]])])
+		qt_sed_measurement = np.zeros([len(boot_dict), len(self.config_dict['parameter_names'][bin_keys[0]]),
+									   len(self.config_dict['parameter_names'][bin_keys[1]])])
+
+		for iwv, wv in enumerate(boot_dict):
+			sf_sed_array[:, iwv, :] = boot_dict[wv][:, :, :, 1]
+			qt_sed_array[:, iwv, :] = boot_dict[wv][:, :, :, 0]
+			sf_sed_measurement[iwv, :] = flux_dict[wv][:, :, 1]
+			qt_sed_measurement[iwv, :] = flux_dict[wv][:, :, 0]
+		sed_dict = {'sf': {'sed_measurement': sf_sed_measurement, 'sed_bootstrap': sf_sed_array},
+					'qt': {'sed_measurement': qt_sed_measurement, 'sed_bootstrap': qt_sed_array}}
+		return {'flux_densities': flux_array, 'bootstrap_flux_densities': boot_array, 'sed_dict': sed_dict,
+				'wavelengths': list(boot_dict.keys())}
+
+	def estimate_mcmc_seds(self, bootstrap_dict, split_table=None, plot_seds=False):
+		bin_keys = list(self.config_dict['parameter_names'].keys())
+		ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+		if split_table is None:
+			split_table = self.catalog_dict['tables']['split_table'][['redshift', 'stellar_mass', 'split_params']]
+
+		wvs = bootstrap_dict['wavelengths']
+		wv_array = self.loggen(8, 1000, 100)
+		z_bins = self.config_dict['distance_bins']['redshift']
+		z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
+
+		ngals = np.zeros(ds)
+		# lir_16 = np.zeros(ds)
+		lir_25 = np.zeros(ds)
+		lir_32 = np.zeros(ds)
+		lir_50 = np.zeros(ds)
+		lir_68 = np.zeros(ds)
+		lir_75 = np.zeros(ds)
+		# lir_84 = np.zeros(ds)
+		# lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84, 'redshift_bins': z_bins}
+		lir_dict = {'25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, 'redshift_bins': z_bins, 'ngals': ngals}
+
+		mcmc_iterations = 200 # 2000  # 500
+		mcmc_discard = 5 # 20  # 10
+
+		if plot_seds:
+			plen = 8
+			zlen = len(z_mid)
+			fig, axs = plt.subplots(plen, zlen, figsize=(33, 20))
+
+		for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+			for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+				for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+					ngals[iz, im, ip] = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (
+								split_table.split_params == ip))
+					x = wvs
+					if ip:
+						pop = 'sf'
+					else:
+						pop = 'qt'
+					y = bootstrap_dict['sed_dict'][pop]['sed_measurement'][:, iz, im]
+					yerr = np.cov(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][:, :, iz, im], rowvar=False)
+
+					sed_params = self.fast_sed_fitter(x, y, yerr)
+					sed_array = self.fast_sed(sed_params, wv_array)
+
+					Ain = np.log10(sed_params['A'].value)
+					Tin = sed_params['T_observed'].value
+					theta0 = Ain, Tin
+					pos = np.array([Ain, Tin]) + 1e-1 * np.random.randn(32, 2)
+					nwalkers, ndim = pos.shape
+
+					plot_true = plot_seds
+					try:
+						sampler = emcee.EnsembleSampler(
+							nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
+						)
+						sampler.run_mcmc(pos, mcmc_iterations, progress=True)
+						flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
+						# mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 50, 75, 84]) for i in range(ndim)]
+						mcmc_out = [np.percentile(flat_samples[:, i], [25, 32, 50, 68, 75]) for i in range(ndim)]
+						# mcmc_16 = graybody_fn([mcmc_out[0][0],mcmc_out[1][0]], wv_array)
+						mcmc_25 = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
+						#mcmc_32 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
+						mcmc_50 = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
+						#mcmc_68 = self.graybody_fn([mcmc_out[0][3], mcmc_out[1][3]], wv_array)
+						mcmc_75 = self.graybody_fn([mcmc_out[0][4], mcmc_out[1][4]], wv_array)
+						# mcmc_84 = graybody_fn([mcmc_out[0][4],mcmc_out[1][4]], wv_array)
+
+						# lir_16[iz,im,ip] = np.log10(fast_LIR([mcmc_out[0][0],mcmc_out[1][0]],z_mid[iz]))
+						lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_mid[iz]))
+						lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_mid[iz]))
+						lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_mid[iz]))
+						lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_mid[iz]))
+						lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_mid[iz]))
+						# lir_84[iz,im,ip] = np.log10(fast_LIR([mcmc_out[0][4],mcmc_out[1][4]],z_mid[iz]))
+
+					except:
+						plot_true = False
+
+					if plot_true:
+						colors = ['y', 'c', 'b', 'r']
+						if ip:
+							ix = im
+						else:
+							ix = im + 4
+
+						mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(lir_50[iz, im, ip],
+																	 mcmc_out[1][2] * (1 + z_mid[iz]))
+
+						axs[ix, iz].plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
+						axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
+						axs[ix, iz].fill_between(wv_array, mcmc_25[0] * 1e3, mcmc_75[0] * 1e3, facecolor='c', alpha=0.3,
+												 edgecolor='c')
+						axs[ix, iz].legend(loc='upper left', frameon=False)
+						axs[ix, iz].text(9.0e0, 2e1, "Ngals={0:.0f}".format(ngals[iz, im, ip]))
+
+						for iwv, wv in enumerate(wvs):
+							if wv in [24, 70]:
+								color = 'b'
+							elif wv in [100, 160]:
+								color = 'g'
+							elif wv in [250, 350, 500]:
+								color = 'r'
+							elif wv in [850]:
+								color = 'y'
+
+							if ip:
+								pop = 'sf'
+							else:
+								pop = 'qt'
+
+							for iboot in range(len(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][iwv, :, iz, im])):
+								axs[ix, iz].scatter(wv, bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][
+									iboot, iwv, iz, im] * 1e3, color=color, alpha=0.1)
+
+							axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
+							axs[ix, iz].errorbar(wv, y[iwv] * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+												 fmt="." + color, capsize=0)
+
+						axs[ix, iz].set_xscale('log')
+						axs[ix, iz].set_yscale('log')
+						axs[ix, iz].set_ylim([1e-2, 5e2])
+
+		return lir_dict
 
 	def plot_seds(self):
 		colors = ['y', 'c', 'b', 'r']

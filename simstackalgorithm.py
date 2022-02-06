@@ -35,7 +35,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, bootstrap=0):
+    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, write_simmaps=False, bootstrap=0):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -53,10 +53,12 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             self.config_dict['general']['binning']['crop_circles'] = crop_circles
         if 'add_background' not in self.config_dict['general']['binning']:
             self.config_dict['general']['binning']['add_background'] = add_background
+        if 'write_simmaps' not in self.config_dict['general']['error_estimator']:
+            self.config_dict['general']['error_estimator']['write_simmaps'] = write_simmaps
         stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
         crop_circles = self.config_dict['general']['binning']['crop_circles']
         add_background = self.config_dict['general']['binning']['add_background']
-
+        write_simmaps = self.config_dict['general']['error_estimator']['write_simmaps']
 
         # Get catalog.  Clean NaNs
         catalog = self.catalog_dict['tables']['split_table'].dropna()
@@ -343,15 +345,16 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             cov_ss_dict[wv] = cov_ss_1d
 
             # Write simulated maps from best-fits
-            if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
+            #pdb.set_trace()
+            if self.config_dict["general"]["error_estimator"]["write_simmaps"]:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
                     if 'background' not in iparam_label:
                         map_dict["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
 
-                map_dict["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
+                self.maps_dict[wv]["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
                 if 'background_layer' in cube_dict['labels']:
-                    map_dict["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
+                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
         #pdb.set_trace()
         return cov_ss_dict
 

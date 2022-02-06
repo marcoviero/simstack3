@@ -10,6 +10,7 @@ from configparser import ConfigParser
 from lmfit import Parameters, minimize, fit_report
 from scipy.ndimage.filters import gaussian_filter
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 
 pi = 3.141592653589793
 L_sun = 3.839e26  # W
@@ -18,9 +19,10 @@ conv_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
 conv_lir_to_sfr = 1.72e-10
 a_nu_flux_to_mass = 6.7e19
-flux_to_specific_luminosity = 1.78  #1e-23 #1.78e-13
-h = 6.62607004e-34  #m2 kg / s  #4.13e-15 #eV/s
-k = 1.38064852e-23  #m2 kg s-2 K-1 8.617e-5 #eV/K
+flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
+h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
+k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
+
 
 class SimstackToolbox:
 
@@ -37,6 +39,8 @@ class SimstackToolbox:
     def save_stacked_fluxes(self, fp_in, overwrite_results=False, shrink_file=True):
         if 'overwrite_results' in self.config_dict['io']:
             overwrite_results = self.config_dict['io']['overwrite_results']
+        if 'shrink_file' in self.config_dict['io']:
+            overwrite_results = self.config_dict['io']['shrink_file']
 
         if 'shortname' in self.config_dict['io']:
             shortname = self.config_dict['io']['shortname']
@@ -58,13 +62,26 @@ class SimstackToolbox:
         print('pickling to ' + fpath)
         self.config_dict['pickles_path'] = fpath
 
+        # Write simmaps
+        if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
+            pdb.set_trace()
+            for wv in self.maps_dict:
+                name_simmap = wv + '_simmap.fits'
+                hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
+                hdul = fits.HDUList([hdu])
+                hdul.writeto(os.path.join(out_file_path, name_simmap))
+                # self.maps_dict[wv].pop("convolved_layer_cube")
+                self.maps_dict[wv].pop("flattened_simmap")
+
         # Get rid of large files
         if shrink_file:
             print('Removing maps_dict')
             self.maps_dict = {}
-            print('Removing catalog_dict')
-            self.catalog_dict = {}
+            print('Removing full_table from catalog_dict')
+            # self.catalog_dict = {}
+            self.catalog_dict['tables']['full_table'] = {}
 
+        #pdb.set_trace()
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
 
@@ -77,15 +94,7 @@ class SimstackToolbox:
         logging.info("")
         shutil.copyfile(fp_in, fp_out)
 
-        # Write simmaps
-        if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
-            for wv in self.maps_dict:
-                name_simmap = wv + '_simmap.fits'
-                hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
-                hdul = fits.HDUList([hdu])
-                hdul.writeto(os.path.join(out_file_path, name_simmap))
-                self.maps_dict[wv].pop("convolved_layer_cube")
-                self.maps_dict[wv].pop("flattened_simmap")
+        self.config_dict['io']['config_ini'] = fp_out
 
         return fpath
 
@@ -95,7 +104,7 @@ class SimstackToolbox:
         return encoding
 
     def parse_path(self, path_in):
-        #print(path_in)
+        # print(path_in)
         path_in = path_in.split(" ")
         if len(path_in) == 1:
             return path_in[0]
@@ -119,12 +128,11 @@ class SimstackToolbox:
             if 'background' in ilabel:
                 labels_out.append(ilabel)
             else:
-                #labels_out.append(ilabel+'__bootstrap1')
+                # labels_out.append(ilabel+'__bootstrap1')
                 labels_out.append(ilabel)
-                labels_out.append(ilabel+'__bootstrap2')
-        #pdb.set_trace()
+                labels_out.append(ilabel + '__bootstrap2')
+        # pdb.set_trace()
         return labels_out
-
 
     def get_params_dict(self, param_file_path):
         config = ConfigParser()
@@ -167,11 +175,176 @@ class SimstackToolbox:
         with open(config_filename_out, 'w') as conf:
             config_out.write(conf)
 
+    def graybody_fn(self, theta, x):
+        A, T = theta
+
+        alphain = 2.0
+        betain = 1.8
+        c_light = 299792458.0  # m/s
+
+        nu_in = np.array([c_light * 1.e6 / wv for wv in x])
+        ng = np.size(A)
+
+        base = 2.0 * (6.626) ** (-2.0 - betain - alphain) * (1.38) ** (3. + betain + alphain) / (2.99792458) ** 2.0
+        expo = 34.0 * (2.0 + betain + alphain) - 23.0 * (3.0 + betain + alphain) - 16.0 + 26.0
+        K = base * 10.0 ** expo
+        w_num = 10 ** A * K * (T * (3.0 + betain + alphain)) ** (3.0 + betain + alphain)
+        w_den = (np.exp(3.0 + betain + alphain) - 1.0)
+        w_div = w_num / w_den
+        nu_cut = (3.0 + betain + alphain) * 0.208367e11 * T
+        graybody = np.reshape(10 ** A, (ng, 1)) * nu_in ** np.reshape(betain, (ng, 1)) * self.black(nu_in, T) / 1000.0
+        powerlaw = np.reshape(w_div, (ng, 1)) * nu_in ** np.reshape(-1.0 * alphain, (ng, 1))
+        graybody[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))] = \
+            powerlaw[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))]
+
+        return graybody
+
+    def log_likelihood(self, theta, x, y, cov):
+        y_model = self.graybody_fn(theta, x)
+        delta_y = y - y_model[0]
+        return -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) + len(y) * np.log(2 * np.pi) + np.log(
+            np.linalg.det(cov)))
+
+    def log_prior(self, theta, theta0):
+        A, T = theta
+        A0, T0 = theta0
+        sigma2_A = 0.25
+        sigma2_T = 1
+
+        if -38 < A < -32 and 2 < T < 24:
+            return -0.5 * (np.sum((A - A0) ** 2 / sigma2_A) + np.sum((T - T0) ** 2 / sigma2_T))
+
+        return -np.inf
+
+    def log_probability(self, theta, x, y, yerr, theta0):
+        lp = self.log_prior(theta, theta0)
+        if not np.isfinite(lp):
+            return -np.inf
+        return lp + self.log_likelihood(theta, x, y, yerr)
+
+    def comoving_volume_given_area(self, area_deg2, zz1, zz2):
+        vol0 = self.config_dict['cosmology_dict']['cosmology'].comoving_volume(zz2) - \
+               self.config_dict['cosmology_dict']['cosmology'].comoving_volume(zz1)
+        vol = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi) * vol0
+        return vol
+
+    def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
+        vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
+        return lir * 1e0 * ngals / vol.value / completeness
+
+    # From Weaver 2022
+    def estimate_mlim_70(self, zin):
+        return -1.51 * 1e6 * (1 + zin) + 6.81 * 1e7 * (1 + zin) ** 2
+
+    def estimate_luminosity_density(self, effective_map_area, lir_dict=None):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        if lir_dict is None:
+            lir_dict = self.results_dict['lir_dict']
+        # ngals = np.zeros(np.shape(lir_dict['50']))
+        # lird_16 =  np.zeros(np.shape(lir_dict['16']))
+        lird_25 = np.zeros(np.shape(lir_dict['25']))
+        lird_32 = np.zeros(np.shape(lir_dict['32']))
+        lird_50 = np.zeros(np.shape(lir_dict['50']))
+        lird_68 = np.zeros(np.shape(lir_dict['68']))
+        lird_75 = np.zeros(np.shape(lir_dict['75']))
+        # lird_84 =  np.zeros(np.shape(lir_dict['84']))
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                    # ngals[iz,im,ip] = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (split_table.split_params == ip))
+                    zlo = float(zlab.split('_')[-2])
+                    zhi = float(zlab.split('_')[-1])
+                    mlim = self.estimate_mlim_70((zhi + zlo) / 2)
+                    mbin = (float(mlab.split('_')[-2]) + float(mlab.split('_')[-1])) / 2
+                    comp = 1
+                    if mbin * 0.98 < np.log10(mlim):
+                        comp = 0.7
+                        print("{:0.2f} , {:0.2f}".format(mbin, np.log10(mlim)))
+
+                    # lird_16[iz,im,ip] = np.log10(estimate_lird(10**lir_dict['16'][iz,im,ip], lir_dict['ngals'][iz,im,ip], effective_map_area, zlo, zhi, completeness=comp))
+                    lird_25[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['25'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    lird_32[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['32'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    lird_50[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['50'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    lird_68[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['68'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    lird_75[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['75'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    # lird_84[iz,im,ip] = np.log10(estimate_lird(10**lir_dict['84'][iz,im,ip], lir_dict['ngals'][iz,im,ip], effective_map_area, zlo, zhi, completeness=comp))
+
+        lird_dict = {'25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
+                     'number_galaxies': lir_dict['ngals'], 'redshift_bins': lir_dict['redshift_bins'],
+                     'parameter_names': self.config_dict['parameter_names']}
+        #lird_dict = {'16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
+        #             '84': lird_84, 'number_galaxies': lir_dict['ngals'], 'redshift_bins': lir_dict['redshift_bins'],
+        #             'parameter_names': self.config_dict['parameter_names']}
+
+        return lird_dict
+
+    def estimate_total_lird(self, lird_dict=None, plot_lird=True, plot_sfrd=True):
+        if lird_dict is None:
+            lird_dict = self.results_dict['lird_dict']
+        z_bins = self.config_dict['distance_bins']['redshift']
+        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
+
+        lird_total = np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1)
+        lird_error = np.sqrt(np.sum(
+            (((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1], axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
+        sfrd_total = conv_lir_to_sfr * (np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1))
+        sfrd_error = np.sqrt(np.sum(
+            ((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1], axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
+
+        if plot_lird:
+            fig = plt.figure(figsize=(9, 6))
+            bin_keys = list(self.config_dict['parameter_names'].keys())
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "Star-Forming logM=" + '-'.join(mlab.split('_')[2:])
+                plt.plot(z_mid, lird_dict['50'][:, im, 1], '-', label=label)
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "Quiescent logM=" + '-'.join(mlab.split('_')[2:])
+                plt.plot(z_mid, lird_dict['50'][:, im, 0], '--', label=label)
+
+            plt.fill_between(z_mid, np.log10(lird_total - lird_error), np.log10(lird_total + lird_error), facecolor='c',
+                             alpha=0.3, edgecolor='c')
+            plt.plot(z_mid, np.log10(lird_total), '-', label='total', color='c')
+            plt.xlabel('redshift')
+            plt.ylabel('IR Luminosity Density [Lsun Mpc3]')
+            plt.ylim([4.5, 9])
+            plt.legend();
+
+        if plot_sfrd:
+            fig = plt.figure(figsize=(9, 6))
+            bin_keys = list(self.config_dict['parameter_names'].keys())
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "Star-Forming logM=" + '-'.join(mlab.split('_')[2:])
+                plt.plot(z_mid, np.log10(conv_lir_to_sfr * 10 ** lird_dict['50'][:, im, 1]), '-', label=label)
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "Quiescent logM=" + '-'.join(mlab.split('_')[2:])
+                plt.plot(z_mid, np.log10(conv_lir_to_sfr * 10 ** lird_dict['50'][:, im, 0]), '--', label=label)
+
+            plt.fill_between(z_mid, np.log10(sfrd_total - sfrd_error), np.log10(sfrd_total + sfrd_error), facecolor='c',
+                             alpha=0.3, edgecolor='c')
+            plt.plot(z_mid, np.log10(sfrd_total), '-', label='total', color='c')
+            plt.xlabel('redshift')
+            plt.ylabel('SFR Density [Msun Mpc3]')
+            plt.ylim([-5, -1])
+            plt.legend();
+
+        return {'lird_total': lird_total, 'lird_total_error': lird_error, 'sfrd_total': sfrd_total,
+                'sfrd_total_error': sfrd_error, 'lird_dict': lird_dict, 'redshifts': z_mid}
+
     def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, redshiftin=0):
         fit_params = Parameters()
         fit_params.add('A', value=1e-32, vary=True)
-        #fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
-        #fit_params.add('T_observed', value=20.0+0.3*(redshiftin), vary=True)
+        # fit_params.add('T_observed', value=22.0+0.4*(redshiftin), vary=True, max=26.0+0.4*(redshiftin))
+        # fit_params.add('T_observed', value=20.0+0.3*(redshiftin), vary=True)
         fit_params.add('T_observed', value=18, vary=True)
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
@@ -182,7 +355,7 @@ class SimstackToolbox:
         sed_params = minimize(self.find_sed_min, fit_params,
                               args=(wavelengths,),
                               kws={'fluxes': fluxin, 'covar': covar})
-        #pdb.set_trace()
+        # pdb.set_trace()
         m = sed_params.params
 
         return m
@@ -190,23 +363,41 @@ class SimstackToolbox:
     def find_sed_min(self, p, wavelengths, fluxes, covar=None):
 
         graybody = self.fast_sed(p, wavelengths)
-        #print(p['T_observed'])
-        #print(fluxes - graybody)
+        # print(p['T_observed'])
+        # print(fluxes - graybody)
         if covar is not None:
             return (fluxes - graybody)
         else:
             return (fluxes - graybody) / covar
 
+    def fast_LIR(self, theta, zin):  # Tin,betain,alphain,z):
+        '''This calls graybody_fn instead of fast_sed'''
+        # pdb.set_trace()
+        # wavelength_range = np.linspace(8., 1000., 9992)
+        wavelength_range = self.loggen(8, 1000, 1000)
+        model_sed = self.graybody_fn(theta, wavelength_range)
+
+        nu_in = c * 1.e6 / wavelength_range
+        dnu = nu_in[:-1] - nu_in[1:]
+        dnu = np.append(dnu[0], dnu)
+        Lir = np.sum(model_sed * dnu, axis=1)
+        conversion = 4.0 * np.pi * (
+                    1.0E-13 * self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
+                zin) * 3.08568025E22) ** 2.0 / L_sun  # 4 * pi * D_L^2    units are L_sun/(Jy x Hz)
+
+        Lrf = Lir * conversion  # Jy x Hz
+        return Lrf.value[0]
+
     def fast_Lir(self, m, zin):  # Tin,betain,alphain,z):
         '''I dont know how to do this yet'''
-        #pdb.set_trace()
-        #wavelength_range = np.linspace(8., 1000., 10. * 992.)
+        # pdb.set_trace()
+        # wavelength_range = np.linspace(8., 1000., 10. * 992.)
         wavelength_range = self.loggen(8, 1000, 100)
         model_sed = self.fast_sed(m, wavelength_range)
 
         nu_in = c * 1.e6 / wavelength_range
-        #ns = len(nu_in)
-        #dnu = nu_in[0:ns - 1] - nu_in[1:ns]
+        # ns = len(nu_in)
+        # dnu = nu_in[0:ns - 1] - nu_in[1:ns]
         dnu = nu_in[:-1] - nu_in[1:]
         dnu = np.append(dnu[0], dnu)
         Lir = np.sum(model_sed * dnu, axis=1)
@@ -519,5 +710,4 @@ class SimstackToolbox:
 
     def weaver_completeness(self, z):
 
-        return -3.55 * 1e8*(1 + z) + 2.70 * 1e8*(1 + z)**2.0
-
+        return -3.55 * 1e8 * (1 + z) + 2.70 * 1e8 * (1 + z) ** 2.0

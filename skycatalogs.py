@@ -34,7 +34,7 @@ class Skycatalogs:
 
 		self.config_dict = config_dict
 
-	def import_catalog(self):
+	def import_catalog(self, keep_catalog=False):
 
 		#self.catalog_dict = {}
 
@@ -49,7 +49,8 @@ class Skycatalogs:
 		self.split_table_into_populations(qg_zcut=4)
 
 		# Remove full table from simstack_object (they're huge!)
-		self.catalog_dict['tables'].pop('full_table')
+		if not keep_catalog:
+			self.catalog_dict['tables'].pop('full_table')
 
 	def split_table_into_populations(self, qg_zcut=10):
 
