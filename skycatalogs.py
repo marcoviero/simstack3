@@ -28,7 +28,7 @@ class Skycatalogs:
 		--
 	'''
 
-	catalog_dict = {}
+	#catalog_dict = {}
 
 	def __init__(self, config_dict):
 
@@ -36,7 +36,7 @@ class Skycatalogs:
 
 	def import_catalog(self, keep_catalog=False):
 
-		#self.catalog_dict = {}
+		self.catalog_dict = {}
 
 		catalog_params = self.config_dict['catalog']
 		path_catalog = os.path.join(self.parse_path(catalog_params['path']), catalog_params['file'])

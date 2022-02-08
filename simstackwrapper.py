@@ -28,8 +28,12 @@ class SimstackWrapper(SimstackAlgorithm):
     '''
     def __init__(self, param_file_path, read_maps=False, read_catalog=False, keep_catalog=False,
                  stack_automatically=False, save_automatically=True, parse_automatically=False,
-                 overwrite_results=False, debug=False):
+                 overwrite_results=False):
         super().__init__(param_file_path)
+
+        # Copy configuration file immediately, before it can be changed.
+        if save_automatically:
+            self.copy_config_file(param_file_path, overwrite_results=overwrite_results)
 
         if read_catalog:
             self.import_catalog(keep_catalog=keep_catalog)  # This happens in skycatalogs.py
@@ -59,5 +63,5 @@ class SimstackWrapper(SimstackAlgorithm):
             setattr(self, 'results_dict', getattr(results_object, 'results_dict'))
 
         if save_automatically:
-            saved_pickle_path = self.save_stacked_fluxes(param_file_path, overwrite_results=overwrite_results)
+            saved_pickle_path = self.save_stacked_fluxes()
             print('saved to ', saved_pickle_path)

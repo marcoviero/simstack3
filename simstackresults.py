@@ -16,7 +16,8 @@ class SimstackResults(SimstackToolbox):
 			if '__' not in i:
 				setattr(self, i, getattr(SimstackResultsObject, i))
 
-	def parse_results(self, beta_rj=1.8, catalog_object=None, estimate_mcmcs=False, plot_seds=False):
+	def parse_results(self, beta_rj=1.8, catalog_object=None, estimate_mcmcs=False, mcmc_iterations=2500, mcmc_discard=25,
+					  plot_seds=False):
 
 		fluxes_dict = self.parse_fluxes()
 		if len(fluxes_dict['wavelengths']) > 1:
@@ -24,23 +25,38 @@ class SimstackResults(SimstackToolbox):
 			self.results_dict['bootstrap_results_dict'] = self.populate_results_dict()
 
 			if estimate_mcmcs:
-				#pdb.set_trace()
 				if 'tables' not in self.catalog_dict:
-					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'], catalog_object.catalog_dict['tables']['split_table'], plot_seds=plot_seds)
+					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
+																			catalog_object.catalog_dict['tables']['split_table'],
+																			mcmc_iterations=mcmc_iterations,
+																			mcmc_discard=mcmc_discard,
+																			plot_seds=plot_seds)
 				else:
-					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'], plot_seds=plot_seds)
+					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
+																			mcmc_iterations=mcmc_iterations,
+																			mcmc_discard=mcmc_discard,
+																			plot_seds=plot_seds)
 
 		else:
 			print("Skipping SED estimates because only single wavelength measured.")
 			self.results_dict['SED_df'] = {'plot_sed': False}
 
-	def plot_lir_density(self, area_deg2, lir_dict=None):
+	def plot_cib(self, area_deg2, plot_cib=False):
 
-		self.estimate_luminosity_density(area_deg2, lir_dict=lir_dict)
+		self.results_dict['cib_dict'] = self.estimate_cib(area_deg2, split_table=None, plot_cib=plot_cib)
 
-	def plot_total_lird(self, lird_dict=None, plot_lird=False, plot_sfrd=False):
+		return self.results_dict['cib_dict']
+
+	def plot_total_lird(self, area_deg2, lir_dict=None, lird_dict=None, plot_lird=False, plot_sfrd=False):
+
+		if lird_dict is not None:
+			self.results_dict['lird_dict'] = lird_dict
+		else:
+			self.results_dict['lird_dict'] = self.estimate_luminosity_density(area_deg2, lir_dict=lir_dict)
 
 		self.results_dict['total_lird_dict'] = self.estimate_total_lird(lird_dict=lird_dict, plot_lird=plot_lird, plot_sfrd=plot_sfrd)
+
+		return self.results_dict['lird_dict'], self.results_dict['total_lird_dict']
 
 	def parse_fluxes(self):
 
@@ -206,10 +222,6 @@ class SimstackResults(SimstackToolbox):
 							tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i, j],
 														 sed_error_array[:, z, i, j]**2,
 														 betain=beta_rj, redshiftin=z_mid)
-							#tst_m = self.fast_sed_fitter(wavelengths, self.clean_nans(np.log10(sed_flux_array[:, z, i, j])),
-							#							 self.clean_nans(np.log10(sed_error_array[:, z, i, j]**2),
-							#											 replacement_char=1e1),
-							#							 betain=beta_rj, redshiftin=z_mid)
 							tst_LIR = self.fast_Lir(tst_m, z_mid)
 							self.results_dict['SED_df']['LIR'][zlab][jlab][ilab] = tst_LIR.value
 							self.results_dict['SED_df']['SED'][zlab][jlab][ilab] = tst_m
@@ -234,8 +246,8 @@ class SimstackResults(SimstackToolbox):
 	def populate_results_dict(self, atonce_object=None):
 		band_keys = list(self.config_dict['maps'].keys())
 		bin_keys = list(self.config_dict['parameter_names'].keys())
-		print(band_keys)
-		print(bin_keys)
+		#print(band_keys)
+		#print(bin_keys)
 		flux_dict = {}
 		boot_dict = {}
 		for band_label in band_keys:
@@ -256,7 +268,7 @@ class SimstackResults(SimstackToolbox):
 								if not iboot:
 									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
 										if atonce_object is not None:
-											pdb.set_trace()
+											#pdb.set_trace()
 											flux_array[iz, im, ipop] = \
 											atonce_object.results_dict['band_results_dict'][band_label][flux_label][
 												label]
@@ -290,7 +302,7 @@ class SimstackResults(SimstackToolbox):
 		return {'flux_densities': flux_array, 'bootstrap_flux_densities': boot_array, 'sed_dict': sed_dict,
 				'wavelengths': list(boot_dict.keys())}
 
-	def estimate_mcmc_seds(self, bootstrap_dict, split_table=None, plot_seds=False):
+	def estimate_mcmc_seds(self, bootstrap_dict, split_table=None, plot_seds=False, mcmc_iterations=2500, mcmc_discard=25):
 		bin_keys = list(self.config_dict['parameter_names'].keys())
 		ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 		if split_table is None:
@@ -311,9 +323,6 @@ class SimstackResults(SimstackToolbox):
 		# lir_84 = np.zeros(ds)
 		# lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84, 'redshift_bins': z_bins}
 		lir_dict = {'25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, 'redshift_bins': z_bins, 'ngals': ngals}
-
-		mcmc_iterations = 200 # 2000  # 500
-		mcmc_discard = 5 # 20  # 10
 
 		if plot_seds:
 			plen = 8

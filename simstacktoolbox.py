@@ -23,7 +23,6 @@ flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
 
-
 class SimstackToolbox:
 
     def __init__(self):
@@ -36,11 +35,8 @@ class SimstackToolbox:
             if '__' not in i:
                 setattr(self, i, getattr(imported_object, i))
 
-    def save_stacked_fluxes(self, fp_in, overwrite_results=False, shrink_file=True):
-        if 'overwrite_results' in self.config_dict['io']:
-            overwrite_results = self.config_dict['io']['overwrite_results']
-        if 'shrink_file' in self.config_dict['io']:
-            overwrite_results = self.config_dict['io']['shrink_file']
+    def copy_config_file(self, fp_in, overwrite_results=False):
+        '''Copy Parameter File Right Away'''
 
         if 'shortname' in self.config_dict['io']:
             shortname = self.config_dict['io']['shortname']
@@ -49,6 +45,7 @@ class SimstackToolbox:
 
         out_file_path = os.path.join(self.parse_path(self.config_dict['io']['output_folder']),
                                      shortname)
+
         if not os.path.exists(out_file_path):
             os.makedirs(out_file_path)
         else:
@@ -56,6 +53,40 @@ class SimstackToolbox:
                 while os.path.exists(out_file_path):
                     out_file_path = out_file_path + "_"
                 os.makedirs(out_file_path)
+        self.config_dict['io']['saved_data_path'] = out_file_path
+
+        # Copy Config File
+        fp_name = os.path.basename(fp_in)
+        fp_out = os.path.join(out_file_path, fp_name)
+        logging.info("Copying parameter file...")
+        logging.info("  FROM : {}".format(fp_in))
+        logging.info("    TO : {}".format(fp_out))
+        logging.info("")
+        shutil.copyfile(fp_in, fp_out)
+        self.config_dict['io']['config_ini'] = fp_out
+
+    def save_stacked_fluxes(self, drop_maps=True, drop_catalogs=False):
+        if 'drop_maps' in self.config_dict['io']:
+            drop_maps = self.config_dict['io']['drop_maps']
+        if 'drop_catalogs' in self.config_dict['io']:
+            drop_catalogs = self.config_dict['io']['drop_catalogs']
+
+        if 'shortname' in self.config_dict['io']:
+            shortname = self.config_dict['io']['shortname']
+        else:
+            shortname = os.path.basename(self.config_dict['io']['config_ini']).split('.')[0]
+
+        #out_file_path = os.path.join(self.parse_path(self.config_dict['io']['output_folder']),
+        #                             shortname)
+        #if not os.path.exists(out_file_path):
+        #    os.makedirs(out_file_path)
+        #else:
+        #    if not overwrite_results:
+        #        while os.path.exists(out_file_path):
+        #            out_file_path = out_file_path + "_"
+        #        os.makedirs(out_file_path)
+
+        out_file_path = self.config_dict['io']['saved_data_path']
 
         fpath = os.path.join(out_file_path, shortname + '.pkl')
 
@@ -64,7 +95,7 @@ class SimstackToolbox:
 
         # Write simmaps
         if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
-            pdb.set_trace()
+            #pdb.set_trace()
             for wv in self.maps_dict:
                 name_simmap = wv + '_simmap.fits'
                 hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
@@ -74,27 +105,28 @@ class SimstackToolbox:
                 self.maps_dict[wv].pop("flattened_simmap")
 
         # Get rid of large files
-        if shrink_file:
+        if drop_maps:
             print('Removing maps_dict')
             self.maps_dict = {}
+        if drop_catalogs:
             print('Removing full_table from catalog_dict')
-            # self.catalog_dict = {}
-            self.catalog_dict['tables']['full_table'] = {}
+            self.catalog_dict = {}
+            # self.catalog_dict['tables']['full_table'] = {}
 
         #pdb.set_trace()
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
 
         # Copy Parameter File
-        fp_name = os.path.basename(fp_in)
-        fp_out = os.path.join(out_file_path, fp_name)
-        logging.info("Copying parameter file...")
-        logging.info("  FROM : {}".format(fp_in))
-        logging.info("    TO : {}".format(fp_out))
-        logging.info("")
-        shutil.copyfile(fp_in, fp_out)
+        #fp_name = os.path.basename(fp_in)
+        #fp_out = os.path.join(out_file_path, fp_name)
+        #logging.info("Copying parameter file...")
+        #logging.info("  FROM : {}".format(fp_in))
+        #logging.info("    TO : {}".format(fp_out))
+        #logging.info("")
+        #shutil.copyfile(fp_in, fp_out)
 
-        self.config_dict['io']['config_ini'] = fp_out
+        #self.config_dict['io']['config_ini'] = fp_out
 
         return fpath
 
@@ -175,6 +207,10 @@ class SimstackToolbox:
         with open(config_filename_out, 'w') as conf:
             config_out.write(conf)
 
+    def lambda_to_ghz(self, lam):
+        c = 299792458.0  # m/s
+        return np.array([1e-9 * c / (i * 1e-6) for i in lam])
+
     def graybody_fn(self, theta, x):
         A, T = theta
 
@@ -208,10 +244,14 @@ class SimstackToolbox:
     def log_prior(self, theta, theta0):
         A, T = theta
         A0, T0 = theta0
-        sigma2_A = 0.25
+        sigma2_A = 1 # 0.25
         sigma2_T = 1
+        Amin = -40  # -38
+        Amax = -30  # -30
+        Tmin = 1  # 2
+        Tmax = 30  # 24
 
-        if -38 < A < -32 and 2 < T < 24:
+        if Amin < A < Amax and Tmin < T < Tmax:
             return -0.5 * (np.sum((A - A0) ** 2 / sigma2_A) + np.sum((T - T0) ** 2 / sigma2_T))
 
         return -np.inf
@@ -236,18 +276,77 @@ class SimstackToolbox:
     def estimate_mlim_70(self, zin):
         return -1.51 * 1e6 * (1 + zin) + 6.81 * 1e7 * (1 + zin) ** 2
 
+    def estimate_nuInu(self, wavelength_um, flux_Jy, area_deg2, ngals, completeness=1):
+        area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
+        return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
+
+    def estimate_cib(self, area_deg2, bootstrap_dict=None, split_table=None, plot_cib=False):
+        if split_table is None:
+            split_table = self.catalog_dict['tables']['split_table']
+        if bootstrap_dict is None:
+            bootstrap_dict = self.results_dict['bootstrap_results_dict']
+
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+
+        wvs = bootstrap_dict['wavelengths']
+        z_bins = self.config_dict['distance_bins']['redshift']
+        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
+
+        nuInu = np.zeros([len(wvs), *ds])
+        cib_dict_out = {'nuInu': nuInu, 'redshift_bins': z_bins, 'wavelengths': wvs}
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+
+                    ngals = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (
+                                split_table.split_params == ip))
+                    x = wvs
+                    if ip:
+                        pop = 'sf'
+                    else:
+                        pop = 'qt'
+
+                    y = bootstrap_dict['sed_dict'][pop]['sed_measurement'][:, iz, im]
+                    yerr = np.cov(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][:, :, iz, im], rowvar=False)
+                    nuInu[:, iz, im, ip] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
+
+        if plot_cib:
+            fig, axs = plt.subplots(1, 2, figsize=(16, 6))
+            ls = [':', '-']
+            for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    axs[0].plot(wvs, np.sum(nuInu[:, iz, :, ip], axis=1), ls[ip], label=zlab)
+                    axs[0].set_xscale('log')
+                    axs[0].set_yscale('log')
+                    axs[0].set_ylim([1e-3, 1e2])
+
+            axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label=zlab, lw=3)
+            # axs[0].legend(loc='upper right')
+
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    axs[1].plot(wvs, np.sum(nuInu[:, :, im, ip], axis=1), ls[ip], label=zlab)
+                    axs[1].set_xscale('log')
+                    axs[1].set_yscale('log')
+                    axs[1].set_ylim([1e-3, 1e2])
+
+            axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label=zlab, lw=3)
+            # axs[1].legend(loc='upper right')
+
+        return cib_dict_out
+
     def estimate_luminosity_density(self, effective_map_area, lir_dict=None):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         if lir_dict is None:
             lir_dict = self.results_dict['lir_dict']
         # ngals = np.zeros(np.shape(lir_dict['50']))
-        # lird_16 =  np.zeros(np.shape(lir_dict['16']))
         lird_25 = np.zeros(np.shape(lir_dict['25']))
         lird_32 = np.zeros(np.shape(lir_dict['32']))
         lird_50 = np.zeros(np.shape(lir_dict['50']))
         lird_68 = np.zeros(np.shape(lir_dict['68']))
         lird_75 = np.zeros(np.shape(lir_dict['75']))
-        # lird_84 =  np.zeros(np.shape(lir_dict['84']))
         for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
@@ -261,7 +360,6 @@ class SimstackToolbox:
                         comp = 0.7
                         print("{:0.2f} , {:0.2f}".format(mbin, np.log10(mlim)))
 
-                    # lird_16[iz,im,ip] = np.log10(estimate_lird(10**lir_dict['16'][iz,im,ip], lir_dict['ngals'][iz,im,ip], effective_map_area, zlo, zhi, completeness=comp))
                     lird_25[iz, im, ip] = np.log10(
                         self.estimate_lird(10 ** lir_dict['25'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
                                       effective_map_area, zlo, zhi, completeness=comp))
@@ -277,14 +375,10 @@ class SimstackToolbox:
                     lird_75[iz, im, ip] = np.log10(
                         self.estimate_lird(10 ** lir_dict['75'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
                                       effective_map_area, zlo, zhi, completeness=comp))
-                    # lird_84[iz,im,ip] = np.log10(estimate_lird(10**lir_dict['84'][iz,im,ip], lir_dict['ngals'][iz,im,ip], effective_map_area, zlo, zhi, completeness=comp))
 
         lird_dict = {'25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
                      'number_galaxies': lir_dict['ngals'], 'redshift_bins': lir_dict['redshift_bins'],
                      'parameter_names': self.config_dict['parameter_names']}
-        #lird_dict = {'16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
-        #             '84': lird_84, 'number_galaxies': lir_dict['ngals'], 'redshift_bins': lir_dict['redshift_bins'],
-        #             'parameter_names': self.config_dict['parameter_names']}
 
         return lird_dict
 
@@ -296,10 +390,14 @@ class SimstackToolbox:
 
         lird_total = np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1)
         lird_error = np.sqrt(np.sum(
-            (((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1], axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
+            (((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1],
+            axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
+        lird_error = np.sqrt(np.sum(((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1]) ** 2), axis=1))
+
         sfrd_total = conv_lir_to_sfr * (np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1))
         sfrd_error = np.sqrt(np.sum(
             ((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1], axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
+        sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2), axis=1))
 
         if plot_lird:
             fig = plt.figure(figsize=(9, 6))
