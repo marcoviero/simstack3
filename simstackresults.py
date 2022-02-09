@@ -25,7 +25,7 @@ class SimstackResults(SimstackToolbox):
 			self.results_dict['bootstrap_results_dict'] = self.populate_results_dict()
 
 			if estimate_mcmcs:
-				if 'tables' not in self.catalog_dict:
+				if catalog_object is not None:
 					self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
 																			catalog_object.catalog_dict['tables']['split_table'],
 																			mcmc_iterations=mcmc_iterations,
@@ -76,7 +76,8 @@ class SimstackResults(SimstackToolbox):
 
 			wavelengths.append(self.config_dict['maps'][key]['wavelength'])
 
-			len_results_dict_keys = int(np.floor(len(list(self.results_dict['band_results_dict'][key].keys())) / 2))
+			#len_results_dict_keys = int(np.floor(len(list(self.results_dict['band_results_dict'][key].keys())) / 2))
+			len_results_dict_keys = np.sum(['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
 			flux_array = np.zeros([len_results_dict_keys, *ds])
 			error_array = np.zeros(ds)
 

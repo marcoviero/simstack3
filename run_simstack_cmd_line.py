@@ -62,6 +62,7 @@ def main():
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
                                       read_maps=True, read_catalog=True)
 
+    simstack_object.copy_config_file(param_file_path, overwrite_results=False)
     print('Now Stacking', param_file_path)
     t0 = time.time()
 
