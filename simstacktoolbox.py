@@ -35,6 +35,32 @@ class SimstackToolbox:
             if '__' not in i:
                 setattr(self, i, getattr(imported_object, i))
 
+    def combine_objects(self, second_object):
+
+        wavelength_keys = list(self.results_dict['band_results_dict'].keys())
+        wavelength_check = list(second_object.results_dict['band_results_dict'].keys())
+        if wavelength_keys != wavelength_check:
+            "Can't combine these objects. Missing bands"
+            pdb.set_trace()
+
+        label_dict = self.config_dict['parameter_names']
+        label_dict_hi = second_object.config_dict['parameter_names']
+        label_dict['redshift'].extend(label_dict_hi['redshift'])
+        self.config_dict['catalog']['distance_labels'].extend(second_object.config_dict['catalog']['distance_labels'])
+        self.config_dict['distance_bins']['redshift'].extend(second_object.config_dict['distance_bins']['redshift'])
+
+        for k, key in enumerate(wavelength_keys):
+            len_results_dict_keys = np.sum(
+                ['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
+            for iboot in np.arange(len_results_dict_keys):
+                if not iboot:
+                    boot_label = 'stacked_flux_densities'
+                else:
+                    boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
+
+                self.results_dict['band_results_dict'][key][boot_label].update(
+                    second_object.results_dict['band_results_dict'][key][boot_label])
+
     def copy_config_file(self, fp_in, overwrite_results=False):
         '''Copy Parameter File Right Away'''
 
@@ -76,16 +102,6 @@ class SimstackToolbox:
         else:
             shortname = os.path.basename(self.config_dict['io']['config_ini']).split('.')[0]
 
-        #out_file_path = os.path.join(self.parse_path(self.config_dict['io']['output_folder']),
-        #                             shortname)
-        #if not os.path.exists(out_file_path):
-        #    os.makedirs(out_file_path)
-        #else:
-        #    if not overwrite_results:
-        #        while os.path.exists(out_file_path):
-        #            out_file_path = out_file_path + "_"
-        #        os.makedirs(out_file_path)
-
         out_file_path = self.config_dict['io']['saved_data_path']
 
         fpath = os.path.join(out_file_path, shortname + '.pkl')
@@ -116,17 +132,6 @@ class SimstackToolbox:
         #pdb.set_trace()
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
-
-        # Copy Parameter File
-        #fp_name = os.path.basename(fp_in)
-        #fp_out = os.path.join(out_file_path, fp_name)
-        #logging.info("Copying parameter file...")
-        #logging.info("  FROM : {}".format(fp_in))
-        #logging.info("    TO : {}".format(fp_out))
-        #logging.info("")
-        #shutil.copyfile(fp_in, fp_out)
-
-        #self.config_dict['io']['config_ini'] = fp_out
 
         return fpath
 
@@ -290,7 +295,7 @@ class SimstackToolbox:
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
         wvs = bootstrap_dict['wavelengths']
-        z_bins = self.config_dict['distance_bins']['redshift']
+        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
         z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
 
         nuInu = np.zeros([len(wvs), *ds])
@@ -337,29 +342,47 @@ class SimstackToolbox:
 
         return cib_dict_out
 
-    def estimate_luminosity_density(self, effective_map_area, lir_dict=None):
+    def estimate_luminosity_density(self, effective_map_area, tables, lir_dict=None):
         bin_keys = list(self.config_dict['parameter_names'].keys())
+        split_table = tables['split_table']
+        full_table = tables['full_table']
         if lir_dict is None:
             lir_dict = self.results_dict['lir_dict']
-        # ngals = np.zeros(np.shape(lir_dict['50']))
+        ngals_array = np.zeros(np.shape(lir_dict['50']))
+        uv_sfrd = np.zeros(np.shape(lir_dict['50']))
+        lird_16 = np.zeros(np.shape(lir_dict['16']))
         lird_25 = np.zeros(np.shape(lir_dict['25']))
         lird_32 = np.zeros(np.shape(lir_dict['32']))
         lird_50 = np.zeros(np.shape(lir_dict['50']))
         lird_68 = np.zeros(np.shape(lir_dict['68']))
         lird_75 = np.zeros(np.shape(lir_dict['75']))
+        lird_84 = np.zeros(np.shape(lir_dict['84']))
+        lird_dict = {'ngals': ngals_array, '16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
+                     '84': lird_84, 'number_galaxies': lir_dict['ngals'], 'uv_sfrd': uv_sfrd,
+                     'redshift_bins': lir_dict['redshift_bins'], 'parameter_names': self.config_dict['parameter_names']}
+
         for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-                    # ngals[iz,im,ip] = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (split_table.split_params == ip))
+                    ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
+                                split_table.split_params == ip)
+                    ngals = np.sum(ind_gals)
+                    ngals_array[iz, im, ip] = ngals
                     zlo = float(zlab.split('_')[-2])
                     zhi = float(zlab.split('_')[-1])
                     mlim = self.estimate_mlim_70((zhi + zlo) / 2)
                     mbin = (float(mlab.split('_')[-2]) + float(mlab.split('_')[-1])) / 2
+                    zmed = np.median(full_table['lp_zBEST'][ind_gals])
+                    mmed = np.median(full_table['lp_mass_med'][ind_gals])
+                    qcomp = self.estimate_quadri_correction(zmed - 2., mmed)
                     comp = 1
-                    if mbin * 0.98 < np.log10(mlim):
-                        comp = 0.7
-                        print("{:0.2f} , {:0.2f}".format(mbin, np.log10(mlim)))
-
+                    if (qcomp > 0.3) and (qcomp < 0.99):
+                        comp = qcomp
+                        print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(zmed, mmed, comp))
+                    '''
+                    lird_16[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['16'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
                     lird_25[iz, im, ip] = np.log10(
                         self.estimate_lird(10 ** lir_dict['25'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
                                       effective_map_area, zlo, zhi, completeness=comp))
@@ -375,29 +398,56 @@ class SimstackToolbox:
                     lird_75[iz, im, ip] = np.log10(
                         self.estimate_lird(10 ** lir_dict['75'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
                                       effective_map_area, zlo, zhi, completeness=comp))
-
-        lird_dict = {'25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
-                     'number_galaxies': lir_dict['ngals'], 'redshift_bins': lir_dict['redshift_bins'],
-                     'parameter_names': self.config_dict['parameter_names']}
+                    lird_84[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['48'][iz, im, ip], lir_dict['ngals'][iz, im, ip],
+                                      effective_map_area, zlo, zhi, completeness=comp))
+                    '''
+                    lird_16[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['16'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_25[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['25'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_32[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['32'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_50[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['50'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_68[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['68'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_75[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['75'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    lird_84[iz, im, ip] = np.log10(
+                        self.estimate_lird(10 ** lir_dict['84'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
+                                      completeness=comp))
+                    uv_sfrd[iz, im, ip] = np.log10(
+                        self.estimate_lird(np.median(10 ** full_table['lp_SFR_best'][ind_gals]), ngals,
+                                      effective_map_area, zlo, zhi, completeness=1))
 
         return lird_dict
 
     def estimate_total_lird(self, lird_dict=None, plot_lird=True, plot_sfrd=True):
         if lird_dict is None:
             lird_dict = self.results_dict['lird_dict']
-        z_bins = self.config_dict['distance_bins']['redshift']
+        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
         z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
 
         lird_total = np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1)
         lird_error = np.sqrt(np.sum(
-            (((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1],
-            axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
-        lird_error = np.sqrt(np.sum(((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1]) ** 2), axis=1))
+            (((10**lird_dict['75'][:, :, 1] - 10**lird_dict['25'][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1],
+            axis=1) / np.sum(10 ** lird_dict['50'][:, :, 1], axis=1))
+        #lird_error = np.sqrt(np.sum(((10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1]) ** 2), axis=1))
 
-        sfrd_total = conv_lir_to_sfr * (np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1))
+        sfrd_total = conv_lir_to_sfr * (np.sum(10**lird_dict['50'][:, :, 1], axis=1) + np.sum(10**lird_dict['50'][:, :, 0], axis=1))
         sfrd_error = np.sqrt(np.sum(
-            ((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2) * lird_dict['50'][:, :, 1], axis=1) / np.sum(lird_dict['50'][:, :, 1], axis=1))
-        sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2), axis=1))
+            ((conv_lir_to_sfr * (10**lird_dict['75'][:, :, 1] - 10**lird_dict['25'][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1], axis=1) / np.sum(10**lird_dict['50'][:, :, 1], axis=1))
+        #sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict['75'][:, :, 1] - 10 ** lird_dict['25'][:, :, 1])) ** 2), axis=1))
+
+        uvsfr_total = np.sum(10 ** lird_dict['uv_sfrd'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['uv_sfrd'][:, :, 0],
+                                                                                   axis=1)
 
         if plot_lird:
             fig = plt.figure(figsize=(9, 6))
@@ -409,8 +459,10 @@ class SimstackToolbox:
                 label = "Quiescent logM=" + '-'.join(mlab.split('_')[2:])
                 plt.plot(z_mid, lird_dict['50'][:, im, 0], '--', label=label)
 
-            plt.fill_between(z_mid, np.log10(lird_total - lird_error), np.log10(lird_total + lird_error), facecolor='c',
-                             alpha=0.3, edgecolor='c')
+            #plt.fill_between(z_mid, np.log10(lird_total - lird_error), np.log10(lird_total + lird_error), facecolor='c',
+            #                 alpha=0.3, edgecolor='c')
+            plt.fill_between(z_mid, np.log10([np.max([i, 0.01]) for i in lird_total - lird_error]),
+                             np.log10(lird_total + lird_error), facecolor='c', alpha=0.3, edgecolor='c')
             plt.plot(z_mid, np.log10(lird_total), '-', label='total', color='c')
             plt.xlabel('redshift')
             plt.ylabel('IR Luminosity Density [Lsun Mpc3]')
@@ -427,11 +479,17 @@ class SimstackToolbox:
                 label = "Quiescent logM=" + '-'.join(mlab.split('_')[2:])
                 plt.plot(z_mid, np.log10(conv_lir_to_sfr * 10 ** lird_dict['50'][:, im, 0]), '--', label=label)
 
-            plt.fill_between(z_mid, np.log10(sfrd_total - sfrd_error), np.log10(sfrd_total + sfrd_error), facecolor='c',
-                             alpha=0.3, edgecolor='c')
+            #plt.fill_between(z_mid, np.log10(sfrd_total - sfrd_error), np.log10(sfrd_total + sfrd_error), facecolor='c',
+            #                 alpha=0.3, edgecolor='c')
+            plt.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
+                             np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c')
+            plt.plot(z_mid, np.log10(sfrd_total), '-', label='total', color='c')
+
+            plt.plot(z_mid, np.log10(uvsfr_total), '--', lw=2, label='LePhare SFR', color='y')
+
             plt.plot(z_mid, np.log10(sfrd_total), '-', label='total', color='c')
             plt.xlabel('redshift')
-            plt.ylabel('SFR Density [Msun Mpc3]')
+            plt.ylabel('SFR Density [Msun/yr Mpc3]')
             plt.ylim([-5, -1])
             plt.legend();
 
@@ -809,3 +867,8 @@ class SimstackToolbox:
     def weaver_completeness(self, z):
 
         return -3.55 * 1e8 * (1 + z) + 2.70 * 1e8 * (1 + z) ** 2.0
+
+    def estimate_quadri_correction(self, z, m):
+        p = np.array([20.00, 5.186, 6.389, 24.539])
+        corr = 1 - 1 / (1 + np.exp(-p[1] * (z - p[0]) +  p[2] * (-p[3] + m)))
+        return corr

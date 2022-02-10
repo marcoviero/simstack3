@@ -47,12 +47,15 @@ class SimstackResults(SimstackToolbox):
 
 		return self.results_dict['cib_dict']
 
-	def plot_total_lird(self, area_deg2, lir_dict=None, lird_dict=None, plot_lird=False, plot_sfrd=False):
+	def plot_total_lird(self, area_deg2, tables=None, lir_dict=None, lird_dict=None, plot_lird=False, plot_sfrd=False):
 
+		if tables is None:
+			pdb.set_trace()
+			tables = self.catalog_dict['tables']
 		if lird_dict is not None:
 			self.results_dict['lird_dict'] = lird_dict
 		else:
-			self.results_dict['lird_dict'] = self.estimate_luminosity_density(area_deg2, lir_dict=lir_dict)
+			self.results_dict['lird_dict'] = self.estimate_luminosity_density(area_deg2, tables, lir_dict=lir_dict)
 
 		self.results_dict['total_lird_dict'] = self.estimate_total_lird(lird_dict=lird_dict, plot_lird=plot_lird, plot_sfrd=plot_sfrd)
 
@@ -311,19 +314,19 @@ class SimstackResults(SimstackToolbox):
 
 		wvs = bootstrap_dict['wavelengths']
 		wv_array = self.loggen(8, 1000, 100)
-		z_bins = self.config_dict['distance_bins']['redshift']
+		z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
 		z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
 
 		ngals = np.zeros(ds)
-		# lir_16 = np.zeros(ds)
+		lir_16 = np.zeros(ds)
 		lir_25 = np.zeros(ds)
 		lir_32 = np.zeros(ds)
 		lir_50 = np.zeros(ds)
 		lir_68 = np.zeros(ds)
 		lir_75 = np.zeros(ds)
-		# lir_84 = np.zeros(ds)
-		# lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84, 'redshift_bins': z_bins}
-		lir_dict = {'25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, 'redshift_bins': z_bins, 'ngals': ngals}
+		lir_84 = np.zeros(ds)
+		lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84,
+					'redshift_bins': z_bins, 'ngals': ngals}
 
 		if plot_seds:
 			plen = 8
@@ -353,31 +356,31 @@ class SimstackResults(SimstackToolbox):
 					nwalkers, ndim = pos.shape
 
 					plot_true = plot_seds
-					try:
+					if np.sum(y):
 						sampler = emcee.EnsembleSampler(
 							nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
 						)
 						sampler.run_mcmc(pos, mcmc_iterations, progress=True)
 						flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
-						# mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 50, 75, 84]) for i in range(ndim)]
-						mcmc_out = [np.percentile(flat_samples[:, i], [25, 32, 50, 68, 75]) for i in range(ndim)]
-						# mcmc_16 = graybody_fn([mcmc_out[0][0],mcmc_out[1][0]], wv_array)
-						mcmc_25 = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
-						#mcmc_32 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
-						mcmc_50 = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
-						#mcmc_68 = self.graybody_fn([mcmc_out[0][3], mcmc_out[1][3]], wv_array)
-						mcmc_75 = self.graybody_fn([mcmc_out[0][4], mcmc_out[1][4]], wv_array)
-						# mcmc_84 = graybody_fn([mcmc_out[0][4],mcmc_out[1][4]], wv_array)
+						mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 32, 50, 68, 75, 84]) for i in range(ndim)]
 
-						# lir_16[iz,im,ip] = np.log10(fast_LIR([mcmc_out[0][0],mcmc_out[1][0]],z_mid[iz]))
-						lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_mid[iz]))
-						lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_mid[iz]))
-						lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_mid[iz]))
-						lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_mid[iz]))
-						lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_mid[iz]))
-						# lir_84[iz,im,ip] = np.log10(fast_LIR([mcmc_out[0][4],mcmc_out[1][4]],z_mid[iz]))
+						mcmc_16 = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
+						mcmc_25 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
+						mcmc_32 = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
+						mcmc_50 = self.graybody_fn([mcmc_out[0][3], mcmc_out[1][3]], wv_array)
+						mcmc_68 = self.graybody_fn([mcmc_out[0][4], mcmc_out[1][4]], wv_array)
+						mcmc_75 = self.graybody_fn([mcmc_out[0][5], mcmc_out[1][5]], wv_array)
+						mcmc_84 = self.graybody_fn([mcmc_out[0][6], mcmc_out[1][6]], wv_array)
 
-					except:
+						lir_16[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_mid[iz]))
+						lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_mid[iz]))
+						lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_mid[iz]))
+						lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_mid[iz]))
+						lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_mid[iz]))
+						lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][5], mcmc_out[1][5]], z_mid[iz]))
+						lir_84[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][6], mcmc_out[1][6]], z_mid[iz]))
+
+					else:
 						plot_true = False
 
 					if plot_true:
@@ -387,14 +390,19 @@ class SimstackResults(SimstackToolbox):
 						else:
 							ix = im + 4
 
-						mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(lir_50[iz, im, ip],
-																	 mcmc_out[1][2] * (1 + z_mid[iz]))
-
 						axs[ix, iz].plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
-						axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
-						axs[ix, iz].fill_between(wv_array, mcmc_25[0] * 1e3, mcmc_75[0] * 1e3, facecolor='c', alpha=0.3,
-												 edgecolor='c')
-						axs[ix, iz].legend(loc='upper left', frameon=False)
+						if ix == 0:
+							axs[ix, iz].set_title(zlab)
+
+						if mcmc_iterations:
+							mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(lir_50[iz, im, ip],
+																		 mcmc_out[1][3] * (1 + z_mid[iz]))
+							axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
+							axs[ix, iz].fill_between(wv_array, mcmc_25[0] * 1e3, mcmc_75[0] * 1e3, facecolor='c',
+													 alpha=0.3, edgecolor='c')
+
+							axs[ix, iz].legend(loc='upper left', frameon=False)
+
 						axs[ix, iz].text(9.0e0, 2e1, "Ngals={0:.0f}".format(ngals[iz, im, ip]))
 
 						for iwv, wv in enumerate(wvs):
@@ -606,10 +614,8 @@ class SimstackResults(SimstackToolbox):
 					for ip, plab in enumerate(self.config_dict['parameter_names'][keys[2]]):
 						axs[ip].scatter(z_data_array, sed_lir_vs_z_array[:, im, ip])
 						axs[ip].plot(z_data_array, sed_lir_vs_z_array[:, im, ip],label=mlab)
-						if not ip:
-							axs[ip].set_ylabel('LIR (M_sun)')
+						axs[ip].set_ylabel('LIR (M_sun)')
 						axs[ip].set_xlabel('redshift')
-						axs[ip].set_ylabel('flux density (Jy)')
 						axs[ip].set_ylim([9, 13.5])
 						axs[ip].set_title(plab)
 				else:
@@ -617,7 +623,6 @@ class SimstackResults(SimstackToolbox):
 					axs.plot(z_data_array, sed_lir_vs_z_array[:, im], label=mlab)
 					axs.set_ylabel('LIR (M_sun)')
 					axs.set_xlabel('redshift')
-					axs.set_ylabel('flux density (Jy)')
 					axs.set_ylim([9, 13.5])
 		else:
 			print("Skipping SED plotting because only single wavelength measured.")
