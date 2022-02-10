@@ -63,6 +63,7 @@ class Skycatalogs:
 		# Split catalog by classification type
 		split_dict = self.config_dict['catalog']['classification']
 		split_type = split_dict.pop('split_type')
+		self.config_dict['split_type'] = split_type
 
 		# By labels means unique values inside columns (e.g., "CLASS" = [0,1,2])
 		if 'labels' in split_type:

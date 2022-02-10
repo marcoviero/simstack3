@@ -61,6 +61,36 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                 self.results_dict['band_results_dict'][key][boot_label].update(
                     second_object.results_dict['band_results_dict'][key][boot_label])
 
+    def construct_longname(self, basename):
+        # shortname = cosmos2020_nuvrj_0p01_0p5_1_1p5_2_2p5_background_atonce_farmer_bootstrap_4
+        type_suffix = self.config_dict['split_type'] #self.config_dict['catalog']['classification']['split_type']
+        dist_bins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
+        dist_suffix = "_".join([str(i).replace('.', 'p') for i in dist_bins]).replace('p0_', '_')
+        background_suffix = ''
+        at_once_suffix = 'layers'
+        catalog_suffix = ''
+        bootstrap_suffix = ''
+        if 'add_background' in self.config_dict['general']['binning']:
+            if self.config_dict['general']['binning']['add_background']:
+                background_suffix = 'background'
+        if 'stack_all_z_at_once' in self.config_dict['general']['binning']:
+            if self.config_dict['general']['binning']['stack_all_z_at_once']:
+                at_once_suffix = 'atonce'
+        if 'farmer' in self.config_dict['catalog']['file'].lower():
+            catalog_suffix = 'farmer'
+        elif 'classic' in self.config_dict['catalog']['file'].lower():
+            catalog_suffix = 'classic'
+        if 'bootstrap' in self.config_dict['general']['error_estimator']:
+            if self.config_dict['general']['error_estimator']['bootstrap']['iterations']:
+                bootstrap_suffix = "_".join(['bootstrap',
+                                             str(self.config_dict['general']['error_estimator']['bootstrap']['iterations'])])
+
+        longname = "_".join([basename, type_suffix, dist_suffix, background_suffix, at_once_suffix, catalog_suffix, bootstrap_suffix])
+
+        #pdb.set_trace()
+        self.config_dict['io']['longname'] = longname
+        return longname
+
     def copy_config_file(self, fp_in, overwrite_results=False):
         '''Copy Parameter File Right Away'''
 
@@ -69,8 +99,9 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         else:
             shortname = os.path.basename(fp_in).split('.')[0]
 
-        out_file_path = os.path.join(self.parse_path(self.config_dict['io']['output_folder']),
-                                     shortname)
+        longname = self.construct_longname(shortname)
+
+        out_file_path = os.path.join(self.parse_path(self.config_dict['io']['output_folder']), longname)
 
         if not os.path.exists(out_file_path):
             os.makedirs(out_file_path)
@@ -97,14 +128,14 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'drop_catalogs' in self.config_dict['io']:
             drop_catalogs = self.config_dict['io']['drop_catalogs']
 
-        if 'shortname' in self.config_dict['io']:
-            shortname = self.config_dict['io']['shortname']
-        else:
-            shortname = os.path.basename(self.config_dict['io']['config_ini']).split('.')[0]
-
+        #if 'shortname' in self.config_dict['io']:
+        #    shortname = self.config_dict['io']['shortname']
+        #else:
+        #    shortname = os.path.basename(self.config_dict['io']['config_ini']).split('.')[0]
+        longname = self.config_dict['io']['longname']
         out_file_path = self.config_dict['io']['saved_data_path']
 
-        fpath = os.path.join(out_file_path, shortname + '.pkl')
+        fpath = os.path.join(out_file_path, longname + '.pkl')
 
         print('pickling to ' + fpath)
         self.config_dict['pickles_path'] = fpath
@@ -129,7 +160,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             self.catalog_dict = {}
             # self.catalog_dict['tables']['full_table'] = {}
 
-        #pdb.set_trace()
         with open(fpath, "wb") as pickle_file_path:
             pickle.dump(self, pickle_file_path)
 

@@ -694,7 +694,7 @@ class SimstackResults(SimstackToolbox):
 
 		axs.plot(np.linspace(0,9),(1+np.linspace(0,9))*2.73,'--',label='CMB')
 		# axs.set_xscale('log')
-		# axs.set_yscale('log')
+		axs.set_yscale('log')
 		axs.set_xlabel('redshift')
 		axs.set_ylabel('T_restframe')
 		axs.legend(loc='upper left')
