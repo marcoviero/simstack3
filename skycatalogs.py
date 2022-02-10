@@ -34,7 +34,7 @@ class Skycatalogs:
 
 		self.config_dict = config_dict
 
-	def import_catalog(self, keep_catalog=False):
+	def import_catalog(self, keep_catalog=False, qg_zcut=10):
 
 		self.catalog_dict = {}
 
@@ -46,13 +46,13 @@ class Skycatalogs:
 			print("Catalog not found: "+path_catalog)
 			pdb.set_trace()
 
-		self.split_table_into_populations(qg_zcut=4)
+		self.split_table_into_populations(qg_zcut=qg_zcut)
 
 		# Remove full table from simstack_object (they're huge!)
 		if not keep_catalog:
 			self.catalog_dict['tables'].pop('full_table')
 
-	def split_table_into_populations(self, qg_zcut=10):
+	def split_table_into_populations(self, qg_zcut):
 
 		# Make new table starting with RA and DEC
 		astrometry_keys = self.config_dict['catalog']['astrometry']
