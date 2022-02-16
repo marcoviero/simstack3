@@ -30,7 +30,7 @@ class SimstackResults(SimstackToolbox):
 
 			if estimate_mcmcs:
 				self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
-																		catalog_object.catalog_dict['tables']['split_table'],
+																		catalog_object.catalog_dict['tables'],
 																		mcmc_iterations=mcmc_iterations,
 																		mcmc_discard=mcmc_discard,
 																		plot_seds=plot_seds)
@@ -38,11 +38,11 @@ class SimstackResults(SimstackToolbox):
 			print("Skipping SED estimates because only single wavelength measured.")
 			self.results_dict['SED_df'] = {'plot_sed': False}
 
-	def plot_cib(self, cib_dict=None, tables=None, area_deg2=None):
+	def plot_cib(self, cib_dict=None, tables=None, area_deg2=None, zbins=[0,1,2,3,4,6,9]):
 
 		if not cib_dict:
 			if 'cib_dict' not in self.results_dict:
-				self.results_dict['cib_dict'] = self.estimate_cib(area_deg2, split_table=tables['split_table'])
+				self.results_dict['cib_dict'] = self.estimate_cib(area_deg2, tables)
 			cib_dict = self.results_dict['cib_dict']
 
 		nuInu = cib_dict['nuInu']
@@ -51,25 +51,41 @@ class SimstackResults(SimstackToolbox):
 
 		fig, axs = plt.subplots(1, 2, figsize=(16, 6))
 		ls = [':', '-']
-		for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-			for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-				axs[0].plot(wvs, np.sum(nuInu[:, iz, :, ip], axis=1), ls[ip], label=zlab)
-				axs[0].set_xscale('log')
-				axs[0].set_yscale('log')
-				axs[0].set_ylim([1e-3, 1e2])
 
-		axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label=zlab, lw=3)
-		# axs[0].legend(loc='upper right')
+
+		for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+			izb = 1
+			nuInuz = 0 * np.sum(nuInu[:, 0, :, ip], axis=1)
+			for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+				zhi = float(zlab.split('_')[-1])
+				#print(zhi, zbins[izb])
+				if zhi > zbins[izb]:
+					#pdb.set_trace()
+					zlabel = "-".join([str(zbins[izb-1]), str(zbins[izb])])
+					axs[0].plot(wvs, nuInuz, ls[ip], label=zlabel)
+					#if ip:
+					#	print(nuInuz)
+					axs[0].set_xscale('log')
+					axs[0].set_yscale('log')
+					axs[0].set_ylim([1e-3, 1e2])
+					nuInuz = np.sum(nuInu[:, iz, :, ip], axis=1)
+					izb+=1
+				else:
+					nuInuz += np.sum(nuInu[:, iz, :, ip], axis=1)
+		#pdb.set_trace()
+
+		axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
+		axs[0].legend(loc='upper right')
 
 		for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 			for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-				axs[1].plot(wvs, np.sum(nuInu[:, :, im, ip], axis=1), ls[ip], label=zlab)
+				axs[1].plot(wvs, np.sum(nuInu[:, :, im, ip], axis=1), ls[ip], label=mlab)
 				axs[1].set_xscale('log')
 				axs[1].set_yscale('log')
 				axs[1].set_ylim([1e-3, 1e2])
 
-		axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label=zlab, lw=3)
-
+		axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
+		axs[1].legend(loc='upper right')
 
 	def plot_total_lird(self, tables, area_deg2, total_lird_dict=None, lird_dict=None, lir_dict=None,
 						plot_lird=False, plot_sfrd=True):
@@ -80,8 +96,9 @@ class SimstackResults(SimstackToolbox):
 					if 'lird_dict' not in self.results_dict:
 						if not lir_dict:
 							if 'lir_dict' not in self.results_dict:
-								self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
-									tables['split_table'], plot_seds=False)
+								self.results_dict['lir_dict'] = \
+									self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
+									tables, plot_seds=False)
 							lir_dict = self.results_dict['lir_dict']
 						self.results_dict['lird_dict'] = self.estimate_luminosity_density(area_deg2, tables, lir_dict)
 					lird_dict = self.results_dict['lird_dict']
@@ -107,9 +124,9 @@ class SimstackResults(SimstackToolbox):
 			plt.plot(z_mid, np.log10(lird_total), '-', label='total', color='c')
 			plt.xlabel('redshift')
 			plt.ylabel('IR Luminosity Density [Lsun Mpc3]')
-			plt.xlim([0, 9])
+			plt.xlim([0, z_bins[-1]])
 			plt.ylim([4.5, 9])
-			plt.legend()
+			plt.legend(loc='lower left', frameon=False)
 
 		if plot_sfrd:
 			sfrd_total = total_lird_dict['sfrd_total']
@@ -132,9 +149,9 @@ class SimstackResults(SimstackToolbox):
 
 			plt.xlabel('redshift')
 			plt.ylabel('SFR Density [Msun/yr Mpc3]')
-			plt.xlim([0, 9])
+			plt.xlim([0, z_bins[-1]])
 			plt.ylim([-5, -1])
-			plt.legend()
+			plt.legend(loc='lower left', frameon=False)
 
 	def parse_fluxes(self):
 
@@ -297,12 +314,13 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['LIR'][zlab][jlab] = {}
 						self.results_dict['SED_df']['SED'][zlab][jlab] = {}
 						for i, ilab in enumerate(label_dict[label_keys[1]]):
-							tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i, j],
-														 sed_error_array[:, z, i, j]**2,
-														 betain=beta_rj, redshiftin=z_mid)
-							tst_LIR = self.fast_Lir(tst_m, z_mid)
-							self.results_dict['SED_df']['LIR'][zlab][jlab][ilab] = tst_LIR.value
-							self.results_dict['SED_df']['SED'][zlab][jlab][ilab] = tst_m
+							if np.sum(sed_flux_array[:, z, i, j]):
+								tst_m = self.fast_sed_fitter(wavelengths, sed_flux_array[:, z, i, j],
+															 sed_error_array[:, z, i, j]**2,
+															 betain=beta_rj, redshiftin=z_mid)
+								tst_LIR = self.fast_Lir(tst_m, z_mid)
+								self.results_dict['SED_df']['LIR'][zlab][jlab][ilab] = tst_LIR.value
+								self.results_dict['SED_df']['SED'][zlab][jlab][ilab] = tst_m
 				else:
 					self.results_dict['SED_df']['flux_density'][zlab] = \
 						pd.DataFrame(sed_flux_array[:, z, :], index=wavelengths, columns=label_dict[label_keys[1]])
@@ -397,11 +415,18 @@ class SimstackResults(SimstackToolbox):
 					yerr = lir_dict['yerr']["_".join([zlab, mlab, plab])]
 					sed_params = self.fast_sed_fitter(wvs, y, yerr)
 					sed_array = self.fast_sed(sed_params, wv_array)
+					graybody = self.fast_sed(sed_params, wvs)[0]
+					delta_y = y - graybody
+					med_delta = np.median(y / delta_y)
 
 					plot_true = True
-					if np.sum(y):
+					label = "_".join([zlab, mlab, plab])
+					if label in lir_dict['mcmc_dict']:
 
-						mcmc_out = lir_dict['mcmc_dict']["_".join([zlab, mlab, plab])]
+						#mcmc_out = lir_dict['mcmc_dict'][label]
+						flat_samples = lir_dict['mcmc_dict'][label]
+						mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 32, 50, 68, 75, 84]) for i in
+									range(np.shape(flat_samples)[1])]
 						lir_16 = lir_dict['16']
 						lir_25 = lir_dict['25']
 						lir_32 = lir_dict['32']
@@ -421,11 +446,11 @@ class SimstackResults(SimstackToolbox):
 						plot_true = False
 
 					if plot_true:
-						colors = ['y', 'c', 'b', 'r']
+						colors = ['y', 'c', 'b', 'r', 'g']
 						if ip:
 							ix = im
 						else:
-							ix = im + 4
+							ix = im + + len(self.config_dict['parameter_names'][bin_keys[1]])
 
 						axs[ix, iz].plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
 						if ix == 0:
@@ -439,7 +464,24 @@ class SimstackResults(SimstackToolbox):
 
 						axs[ix, iz].legend(loc='upper left', frameon=False)
 
-						axs[ix, iz].text(9.0e0, 2e1, "Ngals={0:.0f}".format(ngals[iz, im, ip]))
+						#Ain = np.max([1e-39, sed_params['A'].value])
+						Ain = sed_params['A'].value
+						Aerr = sed_params['A'].stderr
+						Tin = sed_params['T_observed'].value
+						Terr = sed_params['T_observed'].stderr
+						if Tin is None:
+							Tin = (10 ** (1.2 + 0.1 * z_mid[iz])) / (1 + z_mid[iz])
+						if Terr is None:
+							Terr = Tin * med_delta
+						if Ain is None:
+							Ain = 39
+						if Aerr is None:
+							Aerr = Ain * med_delta
+
+						prior_label = "A={0:.1f}+-{1:.1f}, T={2:.1f}+-{3:.1f}".format(Ain,Aerr,Tin,Terr)
+						axs[ix, iz].text(9.0e0, 3e1, prior_label)
+
+						axs[ix, iz].text(9.0e0, 7e0, "Ngals={0:.0f}".format(ngals[iz, im, ip]))
 
 						for iwv, wv in enumerate(wvs):
 							if wv in [24, 70]:
@@ -458,8 +500,8 @@ class SimstackResults(SimstackToolbox):
 
 							if bootstrap_dict is not None:
 								for iboot in range(len(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][iwv, :, iz, im])):
-									axs[ix, iz].scatter(wv, bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][
-										iboot, iwv, iz, im] * 1e3, color=color, alpha=0.1)
+									yplot_boot = bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][iboot, iwv, iz, im] * 1e3
+									axs[ix, iz].scatter(wv, yplot_boot, color=color, alpha=0.1)
 
 							axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
 							axs[ix, iz].errorbar(wv, y[iwv] * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
@@ -470,22 +512,21 @@ class SimstackResults(SimstackToolbox):
 						axs[ix, iz].set_ylim([1e-2, 5e2])
 
 	def plot_seds(self):
-		colors = ['y', 'c', 'b', 'r']
+		colors = ['y', 'c', 'b', 'r', 'g']
 		if self.results_dict['SED_df']['plot_sed']:
 			zlen = len(self.results_dict['SED_df']['flux_density'])
 			if len(self.config_dict['parameter_names']) == 3:
 				zlen = len(self.results_dict['SED_df']['flux_density'])
 				plen = 2
 				fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
-				for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
+				for iz, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
 					zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
-					for p, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
-						# pdb.set_trace()
+					for ip, plab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
 						sed = self.results_dict['SED_df']['flux_density'][zlab][plab]
 						std = self.results_dict['SED_df']['std_error'][zlab][plab]
 						for im, mlab in enumerate(sed):
-							axs[p, z].scatter(sed.index, sed[mlab], color=colors[im])
-							axs[p, z].errorbar(sed.index, sed[mlab], std[mlab], 0, 'none', color=colors[im])
+							axs[ip, iz].scatter(sed.index, sed[mlab], color=colors[im])
+							axs[ip, iz].errorbar(sed.index, sed[mlab], std[mlab], 0, 'none', color=colors[im])
 							# axs[p, z].plot(sed.index, sed[mlab], label=mlab)
 
 							# pdb.set_trace()
@@ -501,25 +542,26 @@ class SimstackResults(SimstackToolbox):
 							line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
 										  "LIR={:.1f}".format(np.log10(LIR))]
 							if LIR > 0:
-								axs[p, z].plot(wv_array, sed_array[0], label=line_label, color=colors[im])
-								axs[p, z].legend(loc='upper right')
+								axs[ip, iz].plot(wv_array, sed_array[0], label=line_label, color=colors[im])
+								axs[ip, iz].legend(loc='upper right')
 							else:
-								axs[p, z].plot(wv_array, sed_array[0], color=colors[im])
+								axs[ip, iz].plot(wv_array, sed_array[0], color=colors[im])
 
-							if not p:
-								axs[p, z].set_title(zlab)
-							axs[p, z].set_xscale('log')
-							axs[p, z].set_yscale('log')
-							axs[p, z].set_xlim([10, 1000])
-							axs[p, z].set_ylim([1e-5, 5e-1])
+							if not ip:
+								axs[ip, iz].set_title(zlab)
+							axs[ip, iz].set_xscale('log')
+							axs[ip, iz].set_yscale('log')
+							axs[ip, iz].set_xlim([10, 1000])
+							axs[ip, iz].set_ylim([1e-5, 5e-1])
+
 			else:
 				fig, axs = plt.subplots(1, zlen, figsize=(36, 10))
-				for z, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
+				for iz, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
 					zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
-					for m, mlab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
+					for im, mlab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
 						sed = self.results_dict['SED_df']['flux_density'][zlab][mlab]
 						std = self.results_dict['SED_df']['std_error'][zlab][mlab]
-						axs[z].scatter(sed.index, sed.values)
+						axs[iz].scatter(sed.index, sed.values)
 
 						LIR = self.results_dict['SED_df']['LIR'][zlab][mlab][0]
 						sed_params = self.results_dict['SED_df']['SED'][zlab][mlab]
@@ -533,17 +575,17 @@ class SimstackResults(SimstackToolbox):
 						line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
 									  "LIR={:.1f}".format(np.log10(LIR))]
 						if LIR > 0:
-							axs[z].plot(wv_array, sed_array[0], label=line_label)
-							axs[z].legend(loc='upper right')
+							axs[iz].plot(wv_array, sed_array[0], label=line_label)
+							axs[iz].legend(loc='upper right')
 						else:
-							axs[z].plot(wv_array, sed_array[0])
+							axs[iz].plot(wv_array, sed_array[0])
 
-						if not m:
-							axs[z].set_title(zlab)
-						axs[z].set_xscale('log')
-						axs[z].set_yscale('log')
-						axs[z].set_xlim([10, 1000])
-						axs[z].set_ylim([1e-5, 5e-1])
+						if not im:
+							axs[iz].set_title(zlab)
+						axs[iz].set_xscale('log')
+						axs[iz].set_yscale('log')
+						axs[iz].set_xlim([10, 1000])
+						axs[iz].set_ylim([1e-5, 5e-1])
 					# pdb.set_trace()
 		else:
 			print("Skipping SED plotting because only single wavelength measured.")
@@ -662,7 +704,7 @@ class SimstackResults(SimstackToolbox):
 		else:
 			print("Skipping SED plotting because only single wavelength measured.")
 
-	def plot_rest_frame_temperature(self, tables, lir_in):
+	def plot_rest_frame_temperature(self, tables, lir_in, ylim=[1e0, 2e2]):
 		full_table = tables['full_table']
 		split_table = tables['split_table']
 
@@ -691,15 +733,17 @@ class SimstackResults(SimstackToolbox):
 		for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 			label = "n=" + '-'.join(mlab.split('_')[1:])
 			axs.plot(zmed[:, im, 1], (t_rf[:, im, 1]), ":o", label=label)
-
-		axs.plot(np.linspace(0,9),(1+np.linspace(0,9))*2.73,'--',label='CMB')
+		z_in = np.linspace(0,zmed[-1,0,1])
+		axs.plot(z_in, (10 ** (1.3 + 0.1 * z_in)), '--', label='Tprior')
+		axs.plot(z_in, (1+z_in)*2.73, '--', label='CMB')
 		# axs.set_xscale('log')
 		axs.set_yscale('log')
+		axs.set_ylim(ylim)
 		axs.set_xlabel('redshift')
 		axs.set_ylabel('T_restframe')
 		axs.legend(loc='upper left')
 
-	def plot_star_forming_main_sequence(self, tables, lir_in):
+	def plot_star_forming_main_sequence(self, tables, lir_in, ylim=[1e-1, 1e4]):
 		colors = list(mcolors.CSS4_COLORS.keys())
 		full_table = tables['full_table']
 		split_table = tables['split_table']
@@ -724,6 +768,7 @@ class SimstackResults(SimstackToolbox):
 			axs.plot(sm[iz, :, 1], (sfr[iz, :, 1]), ":o", color=colors[iz], label=label)
 		# axs.set_xscale('log')
 		axs.set_yscale('log')
+		axs.set_ylim(ylim)
 		axs.set_xlabel('Stellar Mass [Mstar]')
 		axs.set_ylabel('SFR [Mstar/yr]')
 		axs.legend(loc='lower right')

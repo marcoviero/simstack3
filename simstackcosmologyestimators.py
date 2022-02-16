@@ -28,28 +28,50 @@ class SimstackCosmologyEstimators:
     def log_likelihood(self, theta, x, y, cov):
         y_model = self.graybody_fn(theta, x)
         delta_y = y - y_model[0]
-        return -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) + len(y) * np.log(2 * np.pi) + np.log(
+        ll = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) + len(y) * np.log(2 * np.pi) + np.log(
             np.linalg.det(cov)))
+        if not np.isfinite(ll):
+            return -np.inf
+        return ll
 
     def log_prior(self, theta, theta0):
         A, T = theta
-        A0, T0 = theta0
-        sigma2_A = 1 # 0.25
-        sigma2_T = 1
-        Amin = -40  # -38
-        Amax = -30  # -30
-        Tmin = 1  # 2
-        Tmax = 30  # 24
+        A0, T0, sigma_A, sigma_T = theta0
+        Amin = -42
+        Amax = -26
+        Tmin = 1
+        Tmax = 32
 
-        if Amin < A < Amax and Tmin < T < Tmax:
-            return -0.5 * (np.sum((A - A0) ** 2 / sigma2_A) + np.sum((T - T0) ** 2 / sigma2_T))
+        if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None:
+            return 0.0
 
         return -np.inf
 
+    def log_prior_informative(self, theta, theta0):
+        A, T = theta
+        A0, T0, sigma_A, sigma_T = theta0
+        Amin = -42
+        Amax = -26
+        Tmin = 1
+        Tmax = 32
+        error_infl = 1.0
+
+        if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None and sigma_T is not None:
+            try:
+                lp = -0.5 * (np.sum((10**A - 10**A0) ** 2 / (10**sigma_A * error_infl) ** 2) +
+                             np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
+                     np.log(1.0/(np.sqrt(2*np.pi)*(10**sigma_A))) + np.log(1.0/(np.sqrt(2*np.pi)*sigma_T))
+            except:
+                pdb.set_trace()
+            return lp
+        return -np.inf
+
     def log_probability(self, theta, x, y, yerr, theta0):
-        lp = self.log_prior(theta, theta0)
+        lp = self.log_prior_informative(theta, theta0)
+        #pdb.set_trace()
         if not np.isfinite(lp):
             return -np.inf
+        #print(lp, self.log_likelihood(theta, x, y, yerr))
         return lp + self.log_likelihood(theta, x, y, yerr)
 
     def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
@@ -60,7 +82,9 @@ class SimstackCosmologyEstimators:
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
 
-    def estimate_mcmc_seds(self, bootstrap_dict, split_table, mcmc_iterations=2500, mcmc_discard=25):
+    def estimate_mcmc_seds(self, bootstrap_dict, tables, mcmc_iterations=2500, mcmc_discard=25):
+        split_table = tables['split_table']
+        full_table = tables['full_table']
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
@@ -71,6 +95,7 @@ class SimstackCosmologyEstimators:
 
         ngals = np.zeros(ds)
         t_obs = np.zeros(ds)
+        a_obs = np.zeros(ds)
         lir_16 = np.zeros(ds)
         lir_25 = np.zeros(ds)
         lir_32 = np.zeros(ds)
@@ -82,13 +107,15 @@ class SimstackCosmologyEstimators:
         y_dict = {}
         yerr_dict = {}
         lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84,
-                    'Tobs': t_obs, 'mcmc_dict': mcmc_dict, 'y': y_dict, 'yerr': yerr_dict, 'redshift_bins': z_bins, 'ngals': ngals, 'wavelengths': wvs}
+                    'Tobs': t_obs,'Aobs': a_obs, 'mcmc_dict': mcmc_dict, 'y': y_dict, 'yerr': yerr_dict, 'redshift_bins': z_bins, 'ngals': ngals, 'wavelengths': wvs}
 
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-                    ngals[iz, im, ip] = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-                            split_table.split_params == ip))
+                    ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
+                            split_table.split_params == ip)
+                    ngals[iz, im, ip] = np.sum(ind_gals)
+                    z_median = np.median(full_table['lp_zBEST'][ind_gals])
                     x = wvs
                     if ip:
                         pop = 'sf'
@@ -100,15 +127,32 @@ class SimstackCosmologyEstimators:
                     yerr_dict["_".join([zlab, mlab, plab])] = yerr
 
                     sed_params = self.fast_sed_fitter(x, y, yerr)
+                    graybody = self.fast_sed(sed_params, x)[0]
+                    delta_y = y - graybody
+                    med_delta = np.median(y / delta_y)
 
-                    Ain = np.log10(sed_params['A'].value)
+                    #Ain = np.max([1e-39, sed_params['A'].value])
+                    Ain = sed_params['A'].value
+                    Aerr = sed_params['A'].stderr
                     Tin = sed_params['T_observed'].value
-                    theta0 = Ain, Tin
+                    Terr = sed_params['T_observed'].stderr
                     t_obs[iz, im, ip] = Tin
+                    a_obs[iz, im, ip] = Ain
+
+                    if Tin is None:
+                        Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
+                    if Terr is None:
+                        Terr = Tin * med_delta
+                    if Ain is None:
+                        Ain = -39
+                    if Aerr is None:
+                        Aerr = Ain * med_delta
+
+                    theta0 = Ain, Tin, Aerr, Terr
                     pos = np.array([Ain, Tin]) + 1e-1 * np.random.randn(32, 2)
                     nwalkers, ndim = pos.shape
 
-                    if np.sum(y):
+                    if np.isfinite(np.log(np.linalg.det(yerr))):
                         sampler = emcee.EnsembleSampler(
                             nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
                         )
@@ -116,22 +160,27 @@ class SimstackCosmologyEstimators:
                         flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
                         mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 32, 50, 68, 75, 84]) for i in
                                     range(ndim)]
+                        a_obs[iz, im, ip] = mcmc_out[0][3]
                         t_obs[iz, im, ip] = mcmc_out[1][3]
-                        mcmc_dict["_".join([zlab,mlab,plab])] = mcmc_out
+                        mcmc_dict["_".join([zlab,mlab,plab])] = flat_samples #mcmc_out
 
-                        lir_16[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_mid[iz]))
-                        lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_mid[iz]))
-                        lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_mid[iz]))
-                        lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_mid[iz]))
-                        lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_mid[iz]))
-                        lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][5], mcmc_out[1][5]], z_mid[iz]))
-                        lir_84[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][6], mcmc_out[1][6]], z_mid[iz]))
+                        if not im:
+                            print(ip, z_mid[iz], z_median)
+                        lir_16[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_median))
+                        lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_median))
+                        lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_median))
+                        lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_median))
+                        lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_median))
+                        lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][5], mcmc_out[1][5]], z_median))
+                        lir_84[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][6], mcmc_out[1][6]], z_median))
+                    else:
+                        print(ip, iz, im)
 
         return lir_dict
 
-    def estimate_cib(self, area_deg2, bootstrap_dict=None, split_table=None):
-        if split_table is None:
-            split_table = self.catalog_dict['tables']['split_table']
+    def estimate_cib(self, area_deg2, tables, bootstrap_dict=None):
+        split_table = tables['split_table']
+        full_table = tables['full_table']
         if bootstrap_dict is None:
             bootstrap_dict = self.results_dict['bootstrap_results_dict']
 
@@ -163,7 +212,6 @@ class SimstackCosmologyEstimators:
 
         return cib_dict_out
 
-    #def estimate_luminosity_density(self, effective_map_area, tables, lir_dict):
     def estimate_luminosity_density(self, lir_dict, tables, effective_map_area):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         split_table = tables['split_table']
@@ -228,17 +276,21 @@ class SimstackCosmologyEstimators:
         return lird_dict
 
     def estimate_total_lird(self, lird_dict, errors=('25', '75')):
+        ''' Estimate Weighted Errors'''
 
         lird_total = np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1)
+
+        # lird_error = np.sqrt(np.sum(((10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1]) ** 2), axis=1))
         lird_error = np.sqrt(np.sum(
             (((10**lird_dict[errors[1]][:, :, 1] - 10**lird_dict[errors[0]][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1],
             axis=1) / np.sum(10 ** lird_dict['50'][:, :, 1], axis=1))
-        #lird_error = np.sqrt(np.sum(((10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1]) ** 2), axis=1))
+
 
         sfrd_total = conv_lir_to_sfr * (np.sum(10**lird_dict['50'][:, :, 1], axis=1) + np.sum(10**lird_dict['50'][:, :, 0], axis=1))
+
+        #sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1])) ** 2), axis=1))
         sfrd_error = np.sqrt(np.sum(
             ((conv_lir_to_sfr * (10**lird_dict[errors[1]][:, :, 1] - 10**lird_dict[errors[0]][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1], axis=1) / np.sum(10**lird_dict['50'][:, :, 1], axis=1))
-        #sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1])) ** 2), axis=1))
 
         uvsfr_total = np.sum(10 ** lird_dict['uv_sfrd'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['uv_sfrd'][:, :, 0],
                                                                                    axis=1)

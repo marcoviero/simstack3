@@ -56,7 +56,7 @@ def main():
     try:
         param_file_path = sys.argv[1]
     except:
-        param_file_path = os.path.join('config', 'cosmos2020.ini')
+        param_file_path = os.path.join('config', 'cosmos2020_alt_binning.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,
