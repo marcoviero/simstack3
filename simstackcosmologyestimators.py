@@ -74,6 +74,23 @@ class SimstackCosmologyEstimators:
         #print(lp, self.log_likelihood(theta, x, y, yerr))
         return lp + self.log_likelihood(theta, x, y, yerr)
 
+    def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
+        #ind_ul = (y - np.diag(yerr)) < 0
+        #if np.sum(ind_ul):
+        #    for i, err in enumerate(ind_ul):
+        #        if err:
+        #            yerr[i, :] *= 1e3
+        #            yerr[:, i] *= 1e3
+        pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
+        nwalkers, ndim = pos.shape
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta)
+        )
+        sampler.run_mcmc(pos, mcmc_iterations, progress=True)
+        flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
+
+        return flat_samples
+
     def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
         vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
         return lir * 1e0 * ngals / vol.value / completeness
@@ -82,7 +99,9 @@ class SimstackCosmologyEstimators:
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
 
-    def estimate_mcmc_seds(self, bootstrap_dict, tables, mcmc_iterations=2500, mcmc_discard=25):
+    def estimate_mcmc_seds(self, bootstrap_dict, tables,
+                           percentiles=[16, 25, 32, 50, 68, 75, 84],
+                           mcmc_iterations=2500, mcmc_discard=25):
         split_table = tables['split_table']
         full_table = tables['full_table']
         bin_keys = list(self.config_dict['parameter_names'].keys())
@@ -106,8 +125,13 @@ class SimstackCosmologyEstimators:
         mcmc_dict = {}
         y_dict = {}
         yerr_dict = {}
-        lir_dict = {'16': lir_16, '25': lir_25, '32': lir_32, '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84,
-                    'Tobs': t_obs,'Aobs': a_obs, 'mcmc_dict': mcmc_dict, 'y': y_dict, 'yerr': yerr_dict, 'redshift_bins': z_bins, 'ngals': ngals, 'wavelengths': wvs}
+        z_dict = {}
+        lir_dict = {}
+        return_dict = {'percentiles':percentiles, 'lir_dict': lir_dict, '16': lir_16, '25': lir_25, '32': lir_32,
+                       '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84,
+                       'Tobs': t_obs,'Aobs': a_obs, 'mcmc_dict': mcmc_dict, 'z_median': z_dict, 'redshift_bins': z_bins,
+                       'y': y_dict, 'yerr': yerr_dict, 'ngals': ngals, 'wavelengths': wvs}
+
 
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
@@ -116,6 +140,7 @@ class SimstackCosmologyEstimators:
                             split_table.split_params == ip)
                     ngals[iz, im, ip] = np.sum(ind_gals)
                     z_median = np.median(full_table['lp_zBEST'][ind_gals])
+                    z_dict["__".join([zlab, mlab, plab])] = z_median
                     x = wvs
                     if ip:
                         pop = 'sf'
@@ -123,8 +148,8 @@ class SimstackCosmologyEstimators:
                         pop = 'qt'
                     y = bootstrap_dict['sed_dict'][pop]['sed_measurement'][:, iz, im]
                     yerr = np.cov(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][:, :, iz, im], rowvar=False)
-                    y_dict["_".join([zlab, mlab, plab])] = y
-                    yerr_dict["_".join([zlab, mlab, plab])] = yerr
+                    y_dict["__".join([zlab, mlab, plab])] = y
+                    yerr_dict["__".join([zlab, mlab, plab])] = yerr
 
                     sed_params = self.fast_sed_fitter(x, y, yerr)
                     graybody = self.fast_sed(sed_params, x)[0]
@@ -149,20 +174,30 @@ class SimstackCosmologyEstimators:
                         Aerr = Ain * med_delta
 
                     theta0 = Ain, Tin, Aerr, Terr
-                    pos = np.array([Ain, Tin]) + 1e-1 * np.random.randn(32, 2)
-                    nwalkers, ndim = pos.shape
+                    #pos = np.array([Ain, Tin]) + 1e-1 * np.random.randn(32, 2)
+                    #nwalkers, ndim = pos.shape
 
                     if np.isfinite(np.log(np.linalg.det(yerr))):
-                        sampler = emcee.EnsembleSampler(
-                            nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
-                        )
-                        sampler.run_mcmc(pos, mcmc_iterations, progress=True)
-                        flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
-                        mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 32, 50, 68, 75, 84]) for i in
-                                    range(ndim)]
+                        #sampler = emcee.EnsembleSampler(
+                        #    nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
+                        #)
+                        #sampler.run_mcmc(pos, mcmc_iterations, progress=True)
+                        #flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
+                        flat_samples = self.mcmc_sed_estimator(x, y, yerr, theta0,
+                                                               mcmc_iterations=mcmc_iterations, mcmc_discard=mcmc_discard)
+                        mcmc_dict["__".join([zlab,mlab,plab])] = flat_samples
+                        mcmc_out = [np.percentile(flat_samples[:, i], percentiles) for i in range(flat_samples.shape[1])]
+                        #pdb.set_trace()
                         a_obs[iz, im, ip] = mcmc_out[0][3]
                         t_obs[iz, im, ip] = mcmc_out[1][3]
-                        mcmc_dict["_".join([zlab,mlab,plab])] = flat_samples #mcmc_out
+
+                        for ilir, vlir in enumerate(percentiles):
+                            if "__".join([zlab,mlab,plab]) not in lir_dict:
+                                lir_dict["__".join([zlab,mlab,plab])] = \
+                                    {str(vlir): np.log10(self.fast_LIR([mcmc_out[0][ilir], mcmc_out[1][ilir]], z_median))}
+                            else:
+                                lir_dict["__".join([zlab,mlab,plab])][str(vlir)] = \
+                                    np.log10(self.fast_LIR([mcmc_out[0][ilir], mcmc_out[1][ilir]], z_median))
 
                         if not im:
                             print(ip, z_mid[iz], z_median)
@@ -176,7 +211,7 @@ class SimstackCosmologyEstimators:
                     else:
                         print(ip, iz, im)
 
-        return lir_dict
+        return return_dict
 
     def estimate_cib(self, area_deg2, tables, bootstrap_dict=None):
         split_table = tables['split_table']
@@ -225,15 +260,19 @@ class SimstackCosmologyEstimators:
         lird_68 = np.zeros(np.shape(lir_dict['68']))
         lird_75 = np.zeros(np.shape(lir_dict['75']))
         lird_84 = np.zeros(np.shape(lir_dict['84']))
-        lird_dict = {'16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50, '68': lird_68, '75': lird_75,
-                     '84': lird_84, 'uv_sfrd': uv_sfrd, 'redshift_bins': lir_dict['redshift_bins'],
-                     'ngals': ngals_array, 'parameter_names': self.config_dict['parameter_names']}
+        lird_dict = {}
+        percentiles = lir_dict['percentiles']
+        results_dict = {'lird_dict': lird_dict, '16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50,
+                        '68': lird_68, '75': lird_75, '84': lird_84, 'uv_sfrd': uv_sfrd,
+                        'redshift_bins': lir_dict['redshift_bins'], 'ngals': ngals_array,
+                        'parameter_names': self.config_dict['parameter_names']}
 
         for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                     ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
                                 split_table.split_params == ip)
+                    ind_label = "__".join([zlab, mlab, plab])
                     ngals = np.sum(ind_gals)
                     ngals_array[iz, im, ip] = ngals
                     zlo = float(zlab.split('_')[-2])
@@ -247,6 +286,19 @@ class SimstackCosmologyEstimators:
                     if (qcomp > 0.3) and (qcomp < 0.99):
                         comp = qcomp
                         print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(zmed, mmed, comp))
+
+                    if ind_label in lir_dict['lir_dict']:
+                        for ilir, vlir in enumerate(percentiles):
+                            if ind_label not in lird_dict:
+                                lird_dict["__".join([zlab, mlab, plab])] = \
+                                    {str(vlir): np.log10(
+                                        self.estimate_lird(10 ** lir_dict['lir_dict'][ind_label][str(vlir)],
+                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))}
+                            else:
+                                lird_dict["__".join([zlab, mlab, plab])][str(vlir)] = \
+                                    np.log10(
+                                        self.estimate_lird(10 ** lir_dict['lir_dict'][ind_label][str(vlir)],
+                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))
 
                     lird_16[iz, im, ip] = np.log10(
                         self.estimate_lird(10 ** lir_dict['16'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
@@ -273,7 +325,7 @@ class SimstackCosmologyEstimators:
                         self.estimate_lird(np.median(10 ** full_table['lp_SFR_best'][ind_gals]), ngals,
                                       effective_map_area, zlo, zhi, completeness=1))
 
-        return lird_dict
+        return results_dict
 
     def estimate_total_lird(self, lird_dict, errors=('25', '75')):
         ''' Estimate Weighted Errors'''

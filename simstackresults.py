@@ -27,6 +27,7 @@ class SimstackResults(SimstackToolbox):
 		if len(fluxes_dict['wavelengths']) > 1:
 			self.parse_seds(fluxes_dict, beta_rj=beta_rj)
 			self.results_dict['bootstrap_results_dict'] = self.populate_results_dict()
+			self.results_dict['sed_bootstrap_results_dict'] = self.populate_sed_dict()
 
 			if estimate_mcmcs:
 				self.results_dict['lir_dict'] = self.estimate_mcmc_seds(self.results_dict['bootstrap_results_dict'],
@@ -37,6 +38,10 @@ class SimstackResults(SimstackToolbox):
 		else:
 			print("Skipping SED estimates because only single wavelength measured.")
 			self.results_dict['SED_df'] = {'plot_sed': False}
+
+	def sed_density_wrapper(self):
+		''' Estimate and save all steps of the luminosity and star-formation rate densities.'''
+		pass
 
 	def plot_cib(self, cib_dict=None, tables=None, area_deg2=None, zbins=[0,1,2,3,4,6,9]):
 
@@ -339,14 +344,50 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['LIR'][zlab][ilab] = tst_LIR.value
 						self.results_dict['SED_df']['SED'][zlab][ilab] = tst_m
 
+	def populate_sed_dict(self, atonce_object=None):
+		band_keys = list(self.config_dict['maps'].keys())
+		bin_keys = list(self.config_dict['parameter_names'].keys())
+		ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+		flux_dict = {}
+		boot_dict = {}
+		wvs = [self.config_dict['maps'][i]['wavelength'] for i in self.config_dict['maps']]
+		# print(boot_label)
+		for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+			for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+				for ipop, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+					label = "__".join([zlab, mlab, plab]).replace(".", "p")
+					flux_dict[label] = np.zeros(len(band_keys))
+					boots = np.sum(['bootstrap_flux_densities' in i for i in
+									self.results_dict['band_results_dict'][band_keys[0]].keys()])
+					boot_dict[label] = np.zeros([boots, len(band_keys)])
+
+					for iwv, band_label in enumerate(band_keys):
+						for iboot in range(boots):
+							flux_label = 'stacked_flux_densities'
+							boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
+							if len(self.config_dict['parameter_names']) > 2:
+								if not iboot:
+									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
+										if atonce_object is not None:
+											flux_dict[label][iwv] = atonce_object.results_dict['band_results_dict'][band_label][flux_label][label]
+										else:
+											flux_dict[label][iwv] = self.results_dict['band_results_dict'][band_label][flux_label][label]
+								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
+									boot_dict[label][iboot, iwv] = \
+									self.results_dict['band_results_dict'][band_label][boot_label][label]
+
+		return {'sed_fluxes_dict': flux_dict, 'sed_boots_dict': boot_dict, 'wavelengths': wvs}
+
 	def populate_results_dict(self, atonce_object=None):
 		band_keys = list(self.config_dict['maps'].keys())
 		bin_keys = list(self.config_dict['parameter_names'].keys())
+		ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 		flux_dict = {}
 		boot_dict = {}
 		for band_label in band_keys:
-			boots = len(self.results_dict['band_results_dict'][band_label].keys()) - 2
-			ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+			#boots = len(self.results_dict['band_results_dict'][band_label].keys()) - 2
+			boots = np.sum(['bootstrap_flux_densities' in i for i in
+							self.results_dict['band_results_dict'][band_label].keys()])
 			flux_array = np.zeros([*ds])
 			boot_array = np.zeros([boots, *ds])
 			wv = self.config_dict['maps'][band_label]['wavelength']
@@ -393,10 +434,10 @@ class SimstackResults(SimstackToolbox):
 			qt_sed_measurement[iwv, :] = flux_dict[wv][:, :, 0]
 		sed_dict = {'sf': {'sed_measurement': sf_sed_measurement, 'sed_bootstrap': sf_sed_array},
 					'qt': {'sed_measurement': qt_sed_measurement, 'sed_bootstrap': qt_sed_array}}
-		return {'flux_densities': flux_array, 'bootstrap_flux_densities': boot_array, 'sed_dict': sed_dict,
+		return {'flux_densities': flux_array, 'bootstrap_flux_densities': boot_array, 'sed_array_dict': sed_dict,
 				'wavelengths': list(boot_dict.keys())}
 
-	def plot_mcmc_seds(self, lir_dict, bootstrap_dict=None):
+	def plot_mcmc_seds(self, lir_dict, bootstrap_dict=None, errors=('25', '75')):
 		bin_keys = list(self.config_dict['parameter_names'].keys())
 		wvs = lir_dict['wavelengths']
 		wv_array = self.loggen(8, 1000, 100)
@@ -410,9 +451,10 @@ class SimstackResults(SimstackToolbox):
 		for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
 			for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 				for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+					id_label = "__".join([zlab, mlab, plab])
 
-					y = lir_dict['y']["_".join([zlab, mlab, plab])]
-					yerr = lir_dict['yerr']["_".join([zlab, mlab, plab])]
+					y = lir_dict['y'][id_label]
+					yerr = lir_dict['yerr'][id_label]
 					sed_params = self.fast_sed_fitter(wvs, y, yerr)
 					sed_array = self.fast_sed(sed_params, wv_array)
 					graybody = self.fast_sed(sed_params, wvs)[0]
@@ -420,27 +462,15 @@ class SimstackResults(SimstackToolbox):
 					med_delta = np.median(y / delta_y)
 
 					plot_true = True
-					label = "_".join([zlab, mlab, plab])
-					if label in lir_dict['mcmc_dict']:
+					if id_label in lir_dict['mcmc_dict']:
 
-						#mcmc_out = lir_dict['mcmc_dict'][label]
-						flat_samples = lir_dict['mcmc_dict'][label]
-						mcmc_out = [np.percentile(flat_samples[:, i], [16, 25, 32, 50, 68, 75, 84]) for i in
-									range(np.shape(flat_samples)[1])]
-						lir_16 = lir_dict['16']
-						lir_25 = lir_dict['25']
-						lir_32 = lir_dict['32']
-						lir_50 = lir_dict['50']
-						lir_68 = lir_dict['68']
-						lir_75 = lir_dict['75']
-						lir_84 = lir_dict['84']
-						mcmc_16 = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
-						mcmc_25 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
-						mcmc_32 = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
-						mcmc_50 = self.graybody_fn([mcmc_out[0][3], mcmc_out[1][3]], wv_array)
-						mcmc_68 = self.graybody_fn([mcmc_out[0][4], mcmc_out[1][4]], wv_array)
-						mcmc_75 = self.graybody_fn([mcmc_out[0][5], mcmc_out[1][5]], wv_array)
-						mcmc_84 = self.graybody_fn([mcmc_out[0][6], mcmc_out[1][6]], wv_array)
+						flat_samples = lir_dict['mcmc_dict'][id_label]
+						mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
+									for i in range(np.shape(flat_samples)[1])]
+
+						mcmc_lo = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
+						mcmc_50 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
+						mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
 
 					else:
 						plot_true = False
@@ -456,10 +486,11 @@ class SimstackResults(SimstackToolbox):
 						if ix == 0:
 							axs[ix, iz].set_title(zlab)
 
-						mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(lir_50[iz, im, ip],
-																	 mcmc_out[1][3] * (1 + z_mid[iz]))
+						mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(lir_dict['lir_dict'][id_label]['50'],
+																	 mcmc_out[1][1] * (1 + z_mid[iz]))
+
 						axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
-						axs[ix, iz].fill_between(wv_array, mcmc_25[0] * 1e3, mcmc_75[0] * 1e3, facecolor='c',
+						axs[ix, iz].fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
 												 alpha=0.3, edgecolor='c')
 
 						axs[ix, iz].legend(loc='upper left', frameon=False)
@@ -499,8 +530,8 @@ class SimstackResults(SimstackToolbox):
 								pop = 'qt'
 
 							if bootstrap_dict is not None:
-								for iboot in range(len(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][iwv, :, iz, im])):
-									yplot_boot = bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][iboot, iwv, iz, im] * 1e3
+								for iboot in range(len(bootstrap_dict['sed_array_dict'][pop]['sed_bootstrap'][iwv, :, iz, im])):
+									yplot_boot = bootstrap_dict['sed_array_dict'][pop]['sed_bootstrap'][iboot, iwv, iz, im] * 1e3
 									axs[ix, iz].scatter(wv, yplot_boot, color=color, alpha=0.1)
 
 							axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
@@ -704,7 +735,7 @@ class SimstackResults(SimstackToolbox):
 		else:
 			print("Skipping SED plotting because only single wavelength measured.")
 
-	def plot_rest_frame_temperature(self, tables, lir_in, ylim=[1e0, 2e2]):
+	def plot_rest_frame_temperature(self, tables, lir_in, ylim=[1e0, 2e2], fit_p=[1.3, 0.1]):
 		full_table = tables['full_table']
 		split_table = tables['split_table']
 
@@ -734,7 +765,8 @@ class SimstackResults(SimstackToolbox):
 			label = "n=" + '-'.join(mlab.split('_')[1:])
 			axs.plot(zmed[:, im, 1], (t_rf[:, im, 1]), ":o", label=label)
 		z_in = np.linspace(0,zmed[-1,0,1])
-		axs.plot(z_in, (10 ** (1.3 + 0.1 * z_in)), '--', label='Tprior')
+		fit_label = "Tprior = 10^({0:.1f} + {1:.1f}z)".format(fit_p)
+		axs.plot(z_in, (10 ** (fit_p[0] + fit_p[1] * z_in)), '--', label=fit_label)
 		axs.plot(z_in, (1+z_in)*2.73, '--', label='CMB')
 		# axs.set_xscale('log')
 		axs.set_yscale('log')
