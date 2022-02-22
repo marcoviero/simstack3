@@ -252,6 +252,53 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         with open(config_filename_out, 'w') as conf:
             config_out.write(conf)
 
+    def make_array_from_dict(self, input_dict, x=None):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+        if x is not None:
+            array_out = np.zeros([len(x), *ds])
+        else:
+            array_out = np.zeros(ds)
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+                    label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+                    if id_label in input_dict:
+                        if x is not None:
+                            array_out[:, iz, im, ip] = input_dict[id_label]
+                        else:
+                            array_out[iz, im, ip] = input_dict[id_label]
+                    elif label in input_dict:
+                        if x is not None:
+                            array_out[:, iz, im, ip] = input_dict[label]
+                        else:
+                            array_out[iz, im, ip] = input_dict[label]
+        return array_out
+
+    def get_fast_sed_dict(self, sed_bootstrap_dict):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        x = sed_bootstrap_dict['wavelengths']
+
+        wv_array = self.loggen(8, 1000, 100)
+        sed_params_dict = {}
+        graybody_dict = {}
+        return_dict = {'sed_params': sed_params_dict, 'graybody': graybody_dict, 'wv_array': wv_array}
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+                    label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+
+                    y = sed_bootstrap_dict['sed_fluxes_dict'][label]
+                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+
+                    sed_params_dict[id_label] = self.fast_sed_fitter(x, y, yerr)
+                    graybody_dict[id_label] = self.fast_sed(sed_params_dict[id_label], wv_array)[0]
+
+        return return_dict
+
     def lambda_to_ghz(self, lam):
         c = 299792458.0  # m/s
         return np.array([1e-9 * c / (i * 1e-6) for i in lam])

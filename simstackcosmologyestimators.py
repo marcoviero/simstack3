@@ -75,12 +75,7 @@ class SimstackCosmologyEstimators:
         return lp + self.log_likelihood(theta, x, y, yerr)
 
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
-        #ind_ul = (y - np.diag(yerr)) < 0
-        #if np.sum(ind_ul):
-        #    for i, err in enumerate(ind_ul):
-        #        if err:
-        #            yerr[i, :] *= 1e3
-        #            yerr[:, i] *= 1e3
+
         pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
         nwalkers, ndim = pos.shape
         sampler = emcee.EnsembleSampler(
@@ -91,6 +86,210 @@ class SimstackCosmologyEstimators:
 
         return flat_samples
 
+    def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=5):
+
+        id_distance = self.config_dict['catalog']['classification']['redshift']['id']
+        id_secondary = self.config_dict['catalog']['classification']['stellar_mass']['id']
+        split_table = tables['split_table']
+        full_table = tables['full_table']
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+
+        wvs = sed_bootstrap_dict['wavelengths']
+        mcmc_dict = {}
+        y_dict = {}
+        yerr_dict = {}
+        z_dict = {}
+        m_dict = {}
+        ngals_dict = {}
+        return_dict = {'mcmc_dict': mcmc_dict, 'z_median': z_dict, 'm_median': m_dict,
+                       'y': y_dict, 'yerr': yerr_dict, 'ngals': ngals_dict, 'wavelengths': wvs}
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+                    label = id_label.replace('.', 'p')
+                    # print(id_label)
+                    ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
+                            split_table.split_params == ip)
+                    y = sed_bootstrap_dict['sed_fluxes_dict'][label]
+                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+                    y_dict[id_label] = y
+                    yerr_dict[id_label] = yerr
+                    z_median = np.median(full_table[id_distance][ind_gals])
+                    m_median = np.median(full_table[id_secondary][ind_gals])
+                    z_dict[id_label] = z_median
+                    m_dict[id_label] = m_median
+                    ngals_dict[id_label] = np.sum(ind_gals)
+
+                    mcmc_dict[id_label] = self.estimate_mcmc_sed(sed_bootstrap_dict, id_label,
+                                                                 z_median=z_median,
+                                                                 mcmc_iterations=mcmc_iterations,
+                                                                 mcmc_discard=mcmc_discard)
+
+        return return_dict
+
+    def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0,
+                          mcmc_iterations=500, mcmc_discard=5):
+        label = id_label.replace('.', 'p')
+        if not z_median:
+            z_label = id_label.split('_')[1:3]
+            z_median = np.mean([float(i) for i in z_label])
+
+        x = sed_bootstrap_dict['wavelengths']
+        y = sed_bootstrap_dict['sed_fluxes_dict'][label]
+        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+
+        sed_params = self.fast_sed_fitter(x, y, yerr)
+        graybody = self.fast_sed(sed_params, x)[0]
+        delta_y = y - graybody
+        med_delta = np.median(y / delta_y)
+
+        Ain = sed_params['A'].value
+        Aerr = sed_params['A'].stderr
+        Tin = sed_params['T_observed'].value
+        Terr = sed_params['T_observed'].stderr
+
+        if Tin is None:
+            Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
+        if Terr is None:
+            Terr = Tin * med_delta
+        if Ain is None:
+            Ain = -39
+        if Aerr is None:
+            Aerr = Ain * med_delta
+
+        theta0 = Ain, Tin, Aerr, Terr
+
+        if np.isfinite(np.log(np.linalg.det(yerr))):
+            flat_samples = self.mcmc_sed_estimator(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
+                                              mcmc_discard=mcmc_discard)
+        else:
+            return -np.inf
+
+        return flat_samples
+
+    def get_lir_from_mcmc_samples(self, mcmc_samples, percentiles=[16, 25, 32, 50, 68, 75, 84]):
+        lir_dict = {}
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+
+        return_dict = {'lir_dict': lir_dict, 'percentiles': percentiles,
+                       'z_median': mcmc_samples['z_median'], 'm_median': mcmc_samples['m_median'],
+                       'ngals': mcmc_samples['ngals']}
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    if type(mcmc_samples['mcmc_dict'][id_label]) is not float:
+                        try:
+                            mcmc_out = [np.percentile(mcmc_samples['mcmc_dict'][id_label][:, i], percentiles) for i in
+                                        range(mcmc_samples['mcmc_dict'][id_label].shape[1])]
+                        except:
+                            pdb.set_trace()
+                        z_median = mcmc_samples['z_median'][id_label]
+
+                        for i, vpercentile in enumerate(percentiles):
+                            if id_label not in lir_dict:
+                                lir_dict[id_label] = \
+                                    {str(vpercentile): np.log10(
+                                        self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))}
+                            else:
+                                lir_dict[id_label][str(vpercentile)] = \
+                                    np.log10(self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))
+
+        return return_dict
+
+    def estimate_luminosity_density(self, lir_dict, effective_map_area):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        lird_dict = {}
+        percentiles = lir_dict['percentiles']
+        results_dict = {'lird_dict': lird_dict, 'percentiles': percentiles, 'effective_area': effective_map_area,
+                        'z_median': lir_dict['z_median'], 'm_median': lir_dict['m_median'], 'ngals': lir_dict['ngals']}
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    ngals = lir_dict['ngals'][id_label]
+                    zlo = float(zlab.split('_')[-2])
+                    zhi = float(zlab.split('_')[-1])
+
+                    # Get median redshift and stellar-mass and completeness-correct
+                    z_median = lir_dict['z_median'][id_label]
+                    m_median = lir_dict['m_median'][id_label]
+
+                    qcomp = self.estimate_quadri_correction(z_median, m_median)
+                    comp = 1
+                    if (qcomp > 0.3) and (qcomp < 0.99):
+                        comp = qcomp
+                        print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(z_median, m_median, comp))
+
+                    if id_label in lir_dict['lir_dict']:
+                        for ilir, vlir in enumerate(percentiles):
+                            if id_label not in lird_dict:
+                                lird_dict[id_label] = \
+                                    {str(vlir): np.log10(
+                                        self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
+                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))}
+                            else:
+                                lird_dict[id_label][str(vlir)] = \
+                                    np.log10(
+                                        self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
+                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))
+
+        return results_dict
+
+    def estimate_total_lird_array(self, lird_dict, errors=('25', '75')):
+        ''' Estimate Weighted Errors'''
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+        lird_array_mid = np.zeros(ds)
+        lird_array_hi = np.zeros(ds)
+        lird_array_lo = np.zeros(ds)
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                    id_label = "__".join([zlab, mlab, plab])  # .replace('.','p')
+
+                    if id_label in lird_dict['lird_dict']:
+                        lird_array_mid[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label]['50']
+                        lird_array_lo[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[0]]
+                        lird_array_hi[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[1]]
+
+        lird_total = np.sum(lird_array_mid[:, :, 1], axis=1) + np.sum(lird_array_mid[:, :, 0], axis=1)
+        # lird_error = np.sqrt(np.sum(((10 ** lird_array_hi[:, :, 1] - 10 ** lird_array_lo[:, :, 1]) ** 2), axis=1))
+        lird_error = np.sqrt(np.sum(
+            (((lird_array_hi[:, :, 1] - lird_array_lo[:, :, 1])) ** 2) * lird_array_mid[:, :, 1],
+            axis=1) / np.sum(lird_array_mid[:, :, 1], axis=1))
+
+        return {'lird_array': {'50': lird_array_mid, errors[0]: lird_array_lo, errors[1]: lird_array_hi},
+                'lird_total': lird_total, 'lird_total_error': lird_error,
+                'sfrd_total': conv_lir_to_sfr * lird_total, 'sfrd_total_error': conv_lir_to_sfr * lird_error}
+
+    def estimate_cib(self, sed_bootstrap_dict, area_deg2):
+
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+
+        nuInu = {}
+        wvs = sed_bootstrap_dict['wavelengths']
+        cib_dict_out = {'wavelengths': wvs, 'nuInu': nuInu, 'ngals': sed_bootstrap_dict['ngals']}
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+                    if label in sed_bootstrap_dict['sed_fluxes_dict']:
+                        y = sed_bootstrap_dict['sed_fluxes_dict'][label]
+                        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+                        ngals = sed_bootstrap_dict['ngals'][label]
+                        nuInu[label] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
+
+        return cib_dict_out
+
     def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
         vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
         return lir * 1e0 * ngals / vol.value / completeness
@@ -98,253 +297,3 @@ class SimstackCosmologyEstimators:
     def estimate_nuInu(self, wavelength_um, flux_Jy, area_deg2, ngals, completeness=1):
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
-
-    def estimate_mcmc_seds(self, bootstrap_dict, tables,
-                           percentiles=[16, 25, 32, 50, 68, 75, 84],
-                           mcmc_iterations=2500, mcmc_discard=25):
-        split_table = tables['split_table']
-        full_table = tables['full_table']
-        bin_keys = list(self.config_dict['parameter_names'].keys())
-        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
-
-        wvs = bootstrap_dict['wavelengths']
-        wv_array = self.loggen(8, 1000, 100)
-        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
-        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
-
-        ngals = np.zeros(ds)
-        t_obs = np.zeros(ds)
-        a_obs = np.zeros(ds)
-        lir_16 = np.zeros(ds)
-        lir_25 = np.zeros(ds)
-        lir_32 = np.zeros(ds)
-        lir_50 = np.zeros(ds)
-        lir_68 = np.zeros(ds)
-        lir_75 = np.zeros(ds)
-        lir_84 = np.zeros(ds)
-        mcmc_dict = {}
-        y_dict = {}
-        yerr_dict = {}
-        z_dict = {}
-        lir_dict = {}
-        return_dict = {'percentiles':percentiles, 'lir_dict': lir_dict, '16': lir_16, '25': lir_25, '32': lir_32,
-                       '50': lir_50, '68': lir_68, '75': lir_75, '84': lir_84,
-                       'Tobs': t_obs,'Aobs': a_obs, 'mcmc_dict': mcmc_dict, 'z_median': z_dict, 'redshift_bins': z_bins,
-                       'y': y_dict, 'yerr': yerr_dict, 'ngals': ngals, 'wavelengths': wvs}
-
-
-        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-                    ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-                            split_table.split_params == ip)
-                    ngals[iz, im, ip] = np.sum(ind_gals)
-                    z_median = np.median(full_table['lp_zBEST'][ind_gals])
-                    z_dict["__".join([zlab, mlab, plab])] = z_median
-                    x = wvs
-                    if ip:
-                        pop = 'sf'
-                    else:
-                        pop = 'qt'
-                    y = bootstrap_dict['sed_dict'][pop]['sed_measurement'][:, iz, im]
-                    yerr = np.cov(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][:, :, iz, im], rowvar=False)
-                    y_dict["__".join([zlab, mlab, plab])] = y
-                    yerr_dict["__".join([zlab, mlab, plab])] = yerr
-
-                    sed_params = self.fast_sed_fitter(x, y, yerr)
-                    graybody = self.fast_sed(sed_params, x)[0]
-                    delta_y = y - graybody
-                    med_delta = np.median(y / delta_y)
-
-                    #Ain = np.max([1e-39, sed_params['A'].value])
-                    Ain = sed_params['A'].value
-                    Aerr = sed_params['A'].stderr
-                    Tin = sed_params['T_observed'].value
-                    Terr = sed_params['T_observed'].stderr
-                    t_obs[iz, im, ip] = Tin
-                    a_obs[iz, im, ip] = Ain
-
-                    if Tin is None:
-                        Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
-                    if Terr is None:
-                        Terr = Tin * med_delta
-                    if Ain is None:
-                        Ain = -39
-                    if Aerr is None:
-                        Aerr = Ain * med_delta
-
-                    theta0 = Ain, Tin, Aerr, Terr
-                    #pos = np.array([Ain, Tin]) + 1e-1 * np.random.randn(32, 2)
-                    #nwalkers, ndim = pos.shape
-
-                    if np.isfinite(np.log(np.linalg.det(yerr))):
-                        #sampler = emcee.EnsembleSampler(
-                        #    nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta0)
-                        #)
-                        #sampler.run_mcmc(pos, mcmc_iterations, progress=True)
-                        #flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
-                        flat_samples = self.mcmc_sed_estimator(x, y, yerr, theta0,
-                                                               mcmc_iterations=mcmc_iterations, mcmc_discard=mcmc_discard)
-                        mcmc_dict["__".join([zlab,mlab,plab])] = flat_samples
-                        mcmc_out = [np.percentile(flat_samples[:, i], percentiles) for i in range(flat_samples.shape[1])]
-                        #pdb.set_trace()
-                        a_obs[iz, im, ip] = mcmc_out[0][3]
-                        t_obs[iz, im, ip] = mcmc_out[1][3]
-
-                        for ilir, vlir in enumerate(percentiles):
-                            if "__".join([zlab,mlab,plab]) not in lir_dict:
-                                lir_dict["__".join([zlab,mlab,plab])] = \
-                                    {str(vlir): np.log10(self.fast_LIR([mcmc_out[0][ilir], mcmc_out[1][ilir]], z_median))}
-                            else:
-                                lir_dict["__".join([zlab,mlab,plab])][str(vlir)] = \
-                                    np.log10(self.fast_LIR([mcmc_out[0][ilir], mcmc_out[1][ilir]], z_median))
-
-                        if not im:
-                            print(ip, z_mid[iz], z_median)
-                        lir_16[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][0], mcmc_out[1][0]], z_median))
-                        lir_25[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_median))
-                        lir_32[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][2], mcmc_out[1][2]], z_median))
-                        lir_50[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][3], mcmc_out[1][3]], z_median))
-                        lir_68[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][4], mcmc_out[1][4]], z_median))
-                        lir_75[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][5], mcmc_out[1][5]], z_median))
-                        lir_84[iz, im, ip] = np.log10(self.fast_LIR([mcmc_out[0][6], mcmc_out[1][6]], z_median))
-                    else:
-                        print(ip, iz, im)
-
-        return return_dict
-
-    def estimate_cib(self, area_deg2, tables, bootstrap_dict=None):
-        split_table = tables['split_table']
-        full_table = tables['full_table']
-        if bootstrap_dict is None:
-            bootstrap_dict = self.results_dict['bootstrap_results_dict']
-
-        bin_keys = list(self.config_dict['parameter_names'].keys())
-        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
-
-        wvs = bootstrap_dict['wavelengths']
-        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
-        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
-
-        nuInu = np.zeros([len(wvs), *ds])
-        cib_dict_out = {'nuInu': nuInu, 'redshift_bins': z_bins, 'wavelengths': wvs}
-
-        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-
-                    ngals = np.sum((split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-                                split_table.split_params == ip))
-                    x = wvs
-                    if ip:
-                        pop = 'sf'
-                    else:
-                        pop = 'qt'
-
-                    y = bootstrap_dict['sed_dict'][pop]['sed_measurement'][:, iz, im]
-                    yerr = np.cov(bootstrap_dict['sed_dict'][pop]['sed_bootstrap'][:, :, iz, im], rowvar=False)
-                    nuInu[:, iz, im, ip] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
-
-        return cib_dict_out
-
-    def estimate_luminosity_density(self, lir_dict, tables, effective_map_area):
-        bin_keys = list(self.config_dict['parameter_names'].keys())
-        split_table = tables['split_table']
-        full_table = tables['full_table']
-        ngals_array = np.zeros(np.shape(lir_dict['50']))
-        uv_sfrd = np.zeros(np.shape(lir_dict['50']))
-        lird_16 = np.zeros(np.shape(lir_dict['16']))
-        lird_25 = np.zeros(np.shape(lir_dict['25']))
-        lird_32 = np.zeros(np.shape(lir_dict['32']))
-        lird_50 = np.zeros(np.shape(lir_dict['50']))
-        lird_68 = np.zeros(np.shape(lir_dict['68']))
-        lird_75 = np.zeros(np.shape(lir_dict['75']))
-        lird_84 = np.zeros(np.shape(lir_dict['84']))
-        lird_dict = {}
-        percentiles = lir_dict['percentiles']
-        results_dict = {'lird_dict': lird_dict, '16': lird_16, '25': lird_25, '32': lird_32, '50': lird_50,
-                        '68': lird_68, '75': lird_75, '84': lird_84, 'uv_sfrd': uv_sfrd,
-                        'redshift_bins': lir_dict['redshift_bins'], 'ngals': ngals_array,
-                        'parameter_names': self.config_dict['parameter_names']}
-
-        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-                    ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-                                split_table.split_params == ip)
-                    ind_label = "__".join([zlab, mlab, plab])
-                    ngals = np.sum(ind_gals)
-                    ngals_array[iz, im, ip] = ngals
-                    zlo = float(zlab.split('_')[-2])
-                    zhi = float(zlab.split('_')[-1])
-
-                    # Get median redshift and stellar-mass and completeness-correct
-                    zmed = np.median(full_table['lp_zBEST'][ind_gals])
-                    mmed = np.median(full_table['lp_mass_med'][ind_gals])
-                    qcomp = self.estimate_quadri_correction(zmed, mmed)
-                    comp = 1
-                    if (qcomp > 0.3) and (qcomp < 0.99):
-                        comp = qcomp
-                        print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(zmed, mmed, comp))
-
-                    if ind_label in lir_dict['lir_dict']:
-                        for ilir, vlir in enumerate(percentiles):
-                            if ind_label not in lird_dict:
-                                lird_dict["__".join([zlab, mlab, plab])] = \
-                                    {str(vlir): np.log10(
-                                        self.estimate_lird(10 ** lir_dict['lir_dict'][ind_label][str(vlir)],
-                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))}
-                            else:
-                                lird_dict["__".join([zlab, mlab, plab])][str(vlir)] = \
-                                    np.log10(
-                                        self.estimate_lird(10 ** lir_dict['lir_dict'][ind_label][str(vlir)],
-                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))
-
-                    lird_16[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['16'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_25[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['25'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_32[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['32'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_50[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['50'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_68[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['68'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_75[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['75'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    lird_84[iz, im, ip] = np.log10(
-                        self.estimate_lird(10 ** lir_dict['84'][iz, im, ip], ngals, effective_map_area, zlo, zhi,
-                                      completeness=comp))
-                    uv_sfrd[iz, im, ip] = np.log10(
-                        self.estimate_lird(np.median(10 ** full_table['lp_SFR_best'][ind_gals]), ngals,
-                                      effective_map_area, zlo, zhi, completeness=1))
-
-        return results_dict
-
-    def estimate_total_lird(self, lird_dict, errors=('25', '75')):
-        ''' Estimate Weighted Errors'''
-
-        lird_total = np.sum(10 ** lird_dict['50'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['50'][:, :, 0], axis=1)
-
-        # lird_error = np.sqrt(np.sum(((10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1]) ** 2), axis=1))
-        lird_error = np.sqrt(np.sum(
-            (((10**lird_dict[errors[1]][:, :, 1] - 10**lird_dict[errors[0]][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1],
-            axis=1) / np.sum(10 ** lird_dict['50'][:, :, 1], axis=1))
-
-
-        sfrd_total = conv_lir_to_sfr * (np.sum(10**lird_dict['50'][:, :, 1], axis=1) + np.sum(10**lird_dict['50'][:, :, 0], axis=1))
-
-        #sfrd_error = np.sqrt(np.sum(((conv_lir_to_sfr * (10 ** lird_dict[errors[1][:, :, 1] - 10 ** lird_dict[errors[0][:, :, 1])) ** 2), axis=1))
-        sfrd_error = np.sqrt(np.sum(
-            ((conv_lir_to_sfr * (10**lird_dict[errors[1]][:, :, 1] - 10**lird_dict[errors[0]][:, :, 1])) ** 2) * 10**lird_dict['50'][:, :, 1], axis=1) / np.sum(10**lird_dict['50'][:, :, 1], axis=1))
-
-        uvsfr_total = np.sum(10 ** lird_dict['uv_sfrd'][:, :, 1], axis=1) + np.sum(10 ** lird_dict['uv_sfrd'][:, :, 0],
-                                                                                   axis=1)
-        return {'lird_total': lird_total, 'lird_total_error': lird_error, 'sfrd_total': sfrd_total,
-                'sfrd_total_error': sfrd_error, 'uvsfr_total': uvsfr_total}
