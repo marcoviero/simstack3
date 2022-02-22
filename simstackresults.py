@@ -230,29 +230,42 @@ class SimstackResults(SimstackToolbox):
 						self.results_dict['SED_df']['SED'][zlab][ilab] = tst_m
 
 	def populate_sed_dict(self, tables, atonce_object=None):
+		''' Reorganize fluxes into SEDs '''
+		id_distance = self.config_dict['catalog']['classification']['redshift']['id']
+		id_secondary = self.config_dict['catalog']['classification']['stellar_mass']['id']
 		split_table = tables['split_table']
+		full_table = tables['full_table']
 		band_keys = list(self.config_dict['maps'].keys())
 		bin_keys = list(self.config_dict['parameter_names'].keys())
 		flux_dict = {}
-		#lir_dict = {}
 		error_dict = {}
 		boot_dict = {}
 		ngals_dict = {}
+		z_dict = {}
+		m_dict = {}
+		#lir_dict = {}
 		wvs = [self.config_dict['maps'][i]['wavelength'] for i in self.config_dict['maps']]
-		results_dict = {'wavelengths': wvs, 'sed_fluxes_dict': flux_dict, 'std_fluxes_dict': error_dict,
-						'sed_bootstrap_fluxes_dict': boot_dict,	'ngals': ngals_dict} #, 'lir': lir_dict}
+		results_dict = {'wavelengths': wvs, 'z_median': z_dict, 'm_median': m_dict,	'ngals': ngals_dict,
+						'sed_fluxes_dict': flux_dict, 'std_fluxes_dict': error_dict,
+						'sed_bootstrap_fluxes_dict': boot_dict} #, 'lir': lir_dict}
+
 		for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
 			for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 				for ipop, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-					#id_label = "__".join([zlab, mlab, plab])
+					id_label = "__".join([zlab, mlab, plab])
 					label = "__".join([zlab, mlab, plab]).replace(".", "p")
 					ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
 							split_table.split_params == ipop)
-					ngals_dict[label] = np.sum(ind_gals)
-					flux_dict[label] = np.zeros(len(band_keys))
+					ngals_dict[id_label] = np.sum(ind_gals)
+					z_median = np.median(full_table[id_distance][ind_gals])
+					m_median = np.median(full_table[id_secondary][ind_gals])
+					z_dict[id_label] = z_median
+					m_dict[id_label] = m_median
+
+					flux_dict[id_label] = np.zeros(len(band_keys))
 					boots = np.sum(['bootstrap_flux_densities' in i for i in
 									self.results_dict['band_results_dict'][band_keys[0]].keys()])
-					boot_dict[label] = np.zeros([boots, len(band_keys)])
+					boot_dict[id_label] = np.zeros([boots, len(band_keys)])
 
 					for iwv, band_label in enumerate(band_keys):
 						for iboot in range(boots):
@@ -262,17 +275,17 @@ class SimstackResults(SimstackToolbox):
 								if not iboot:
 									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
 										if atonce_object is not None:
-											flux_dict[label][iwv] = \
+											flux_dict[id_label][iwv] = \
 											atonce_object.results_dict['band_results_dict'][band_label][flux_label][
 												label]
 										else:
-											flux_dict[label][iwv] = \
+											flux_dict[id_label][iwv] = \
 											self.results_dict['band_results_dict'][band_label][flux_label][label]
 								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
-									boot_dict[label][iboot, iwv] = \
+									boot_dict[id_label][iboot, iwv] = \
 										self.results_dict['band_results_dict'][band_label][boot_label][label]
 
-					error_dict[label] = np.std(boot_dict[label], axis=0)
+					error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
 
 		return results_dict
 

@@ -30,7 +30,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['cosmology_dict']['cosmology'] = self.config_dict['cosmology_dict'][cosmology_key]
 
         # Store redshifts and lookback times.
-        #zbins = json.loads(json.loads(self.config_dict['catalog']['classification'])['redshift']['bins'])
         zbins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
@@ -64,10 +63,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         catalog = self.catalog_dict['tables']['split_table'].dropna()
 
         # Get binning details
-        #binning = self.config_dict['general']['binning']
-
         split_dict = self.config_dict['catalog']['classification']
-        #split_type = split_dict.pop('split_type')
         if 'split_type' in split_dict:
             print('split_dict looks to be broken')
             pdb.set_trace()
@@ -87,10 +83,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         distance_labels = []
         if not bootstrap:
             flux_density_key = 'stacked_flux_densities'
-            #uncertainty_key = 'stacked_uncertainties'
         else:
             flux_density_key = 'bootstrap_flux_densities_'+str(bootstrap)
-            #uncertainty_key = 'bootstrap_uncertainties_'+str(bootstrap)
         print(flux_density_key)
 
         if stack_all_z_at_once == False:
@@ -112,10 +106,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                         self.results_dict['band_results_dict'][wv] = {}
                     if flux_density_key not in self.results_dict['band_results_dict'][wv]:
                         self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
-                        #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
                     else:
                         self.results_dict['band_results_dict'][wv][flux_density_key].update(cov_ss_out[wv].params)
-                        #self.results_dict['band_results_dict'][wv][uncertainty_key].update(cov_ss_out[wv].params)
         else:
             labels = []
             for i in np.unique(catalog['redshift']):
@@ -133,7 +125,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 if wv not in self.results_dict['band_results_dict']:
                     self.results_dict['band_results_dict'][wv] = {}
                 self.results_dict['band_results_dict'][wv][flux_density_key] = cov_ss_out[wv].params
-                #self.results_dict['band_results_dict'][wv][uncertainty_key] = cov_ss_out[wv].params
 
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
@@ -345,7 +336,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             cov_ss_dict[wv] = cov_ss_1d
 
             # Write simulated maps from best-fits
-            #pdb.set_trace()
             if self.config_dict["general"]["error_estimator"]["write_simmaps"]:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
@@ -355,7 +345,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 self.maps_dict[wv]["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
                 if 'background_layer' in cube_dict['labels']:
                     self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
-        #pdb.set_trace()
+
         return cov_ss_dict
 
     def regress_cube_layers(self, cube, labels=None):
@@ -399,7 +389,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             else:
                 model[:] += layers_1d[i * len_model:(i + 1) * len_model] * v[list(v.keys())[i]]
 
-        # Take the mean of the layers after they've been summed together
+        # Subtract the mean of the layers after they've been summed together
         model -= np.mean(model)
 
         if (err1d is None) or 0 in err1d:

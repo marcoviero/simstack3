@@ -101,8 +101,8 @@ class SimstackCosmologyEstimators:
         z_dict = {}
         m_dict = {}
         ngals_dict = {}
-        return_dict = {'mcmc_dict': mcmc_dict, 'z_median': z_dict, 'm_median': m_dict,
-                       'y': y_dict, 'yerr': yerr_dict, 'ngals': ngals_dict, 'wavelengths': wvs}
+        return_dict = {'wavelengths': wvs, 'z_median': z_dict, 'm_median': m_dict, 'ngals': ngals_dict,
+                       'y': y_dict, 'yerr': yerr_dict,  'mcmc_dict': mcmc_dict}
 
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
@@ -112,8 +112,8 @@ class SimstackCosmologyEstimators:
                     # print(id_label)
                     ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
                             split_table.split_params == ip)
-                    y = sed_bootstrap_dict['sed_fluxes_dict'][label]
-                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+                    y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
+                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
                     y_dict[id_label] = y
                     yerr_dict[id_label] = yerr
                     z_median = np.median(full_table[id_distance][ind_gals])
@@ -131,14 +131,14 @@ class SimstackCosmologyEstimators:
 
     def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0,
                           mcmc_iterations=500, mcmc_discard=5):
-        label = id_label.replace('.', 'p')
+        #label = id_label.replace('.', 'p')
         if not z_median:
             z_label = id_label.split('_')[1:3]
             z_median = np.mean([float(i) for i in z_label])
 
         x = sed_bootstrap_dict['wavelengths']
-        y = sed_bootstrap_dict['sed_fluxes_dict'][label]
-        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+        y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
+        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
 
         sed_params = self.fast_sed_fitter(x, y, yerr)
         graybody = self.fast_sed(sed_params, x)[0]
@@ -281,12 +281,13 @@ class SimstackCosmologyEstimators:
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
-                    label = "__".join([zlab, mlab, plab]).replace('.', 'p')
-                    if label in sed_bootstrap_dict['sed_fluxes_dict']:
-                        y = sed_bootstrap_dict['sed_fluxes_dict'][label]
-                        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
-                        ngals = sed_bootstrap_dict['ngals'][label]
-                        nuInu[label] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
+                    id_label = "__".join([zlab, mlab, plab])
+                    #label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+                    if id_label in sed_bootstrap_dict['sed_fluxes_dict']:
+                        y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
+                        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+                        ngals = sed_bootstrap_dict['ngals'][id_label]
+                        nuInu[id_label] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
 
         return cib_dict_out
 

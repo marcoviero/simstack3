@@ -317,6 +317,8 @@ class SimstackPlots(SimstackToolbox):
             axs[0].plot(wvs, nuInuz, ls[ip], label=zlabel)
 
         axs[0].set_title('CIB by Redshift Contribution')
+        axs[0].set_xlabel('redshift')
+        axs[0].set_ylabel('nuInu [nW/m^2/sr]')
         axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
         axs[0].legend(loc='lower left')
 
@@ -328,8 +330,74 @@ class SimstackPlots(SimstackToolbox):
                 axs[1].set_ylim([1e-3, 1e2])
 
         axs[1].set_title('CIB by Stellar-Mass Contribution')
+        axs[1].set_xlabel('redshift')
+        axs[1].set_ylabel('nuInu [nW/m^2/sr]')
         axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
-        axs[1].legend(loc='upper right')
+        axs[1].legend(loc='lower left')
+
+    def plot_cib_layers(self, cib_dict=None, tables=None, area_deg2=None, show_total=False, zbins=[0, 1, 2, 3, 4, 6, 9]):
+
+        if not cib_dict:
+            if 'cib_dict' not in self.results_dict:
+                self.results_dict['cib_dict'] = self.estimate_cib(area_deg2, tables)
+            cib_dict = self.results_dict['cib_dict']
+
+        wvs = cib_dict['wavelengths']
+        nuInu_dict = cib_dict['nuInu']
+        nuInu = self.make_array_from_dict(nuInu_dict, x=wvs)
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+
+        fig, axs = plt.subplots(1, 2, figsize=(18, 7))
+        ls = [':', '-']
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            izb = 1
+            nuInuz = 0 * np.sum(nuInu[:, 0, :, ip], axis=1)
+            nuInuzL = 0 * np.sum(nuInu[:, 0, :, ip], axis=1)
+
+            for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                zhi = float(zlab.split('_')[-1])
+                # print(zhi, zbins[izb])
+                if zhi > zbins[izb]:
+                    # pdb.set_trace()
+                    nuInuzL += nuInuz
+                    zlabel = "-".join([str(zbins[izb - 1]), str(zbins[izb])])
+                    zlabel = "z < {0:.1f}".format(zbins[izb])
+                    axs[0].plot(wvs, nuInuzL, ls[ip], label=zlabel)
+                    axs[0].set_xscale('log')
+                    axs[0].set_yscale('log')
+                    axs[0].set_ylim([5e-2, 1e1])
+
+                    nuInuz = np.sum(nuInu[:, iz, :, ip], axis=1)
+                    izb += 1
+                else:
+                    nuInuz += np.sum(nuInu[:, iz, :, ip], axis=1)
+
+            zlabel = "z < {0:.1f}".format(zbins[izb])
+            axs[0].plot(wvs, nuInuzL + nuInuz, ls[ip], label=zlabel)
+
+        axs[0].set_title('CIB by Redshift Contribution')
+        axs[0].set_xlabel('redshift')
+        axs[0].set_ylabel('nuInu [nW/m^2/sr]')
+        if show_total:
+            axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
+        axs[0].legend(loc='lower left')
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            nuInuzL = 0 * np.sum(nuInu[:, 0, :, ip], axis=1)
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                nuInuzL += np.sum(nuInu[:, :, im, ip], axis=1)
+                axs[1].plot(wvs, nuInuzL, ls[ip], label=mlab)
+                axs[1].set_xscale('log')
+                axs[1].set_yscale('log')
+                axs[1].set_ylim([5e-2, 1e1])
+
+        axs[1].set_title('CIB by Stellar-Mass Contribution')
+        axs[1].set_xlabel('redshift')
+        axs[1].set_ylabel('nuInu [nW/m^2/sr]')
+        if show_total:
+            axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
+        axs[1].legend(loc='lower left')
 
     def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True):
 
@@ -490,8 +558,8 @@ class SimstackPlots(SimstackToolbox):
         graybodies = self.get_fast_sed_dict(sed_results_dict)
         wvs = sed_results_dict['wavelengths']
 
+        zlen = len(self.config_dict['parameter_names'][bin_keys[0]])
         if len(self.config_dict['parameter_names']) == 3:
-            zlen = len(self.config_dict['parameter_names'][bin_keys[0]])
             plen = len(self.config_dict['parameter_names'][bin_keys[2]])
             fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
             for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
@@ -503,19 +571,15 @@ class SimstackPlots(SimstackToolbox):
                         axs[ip, iz].scatter(wvs, seds[:, iz, im, ip], color=colors[im])
                         axs[ip, iz].errorbar(wvs, seds[:, iz, im, ip], stds[:, iz, im, ip], 0, 'none', color=colors[im])
 
-                        # pdb.set_trace()
-                        # LIR = self.results_dict['SED_df']['LIR'][zlab][plab][mlab][0]
+                        LIR = graybodies['lir'][id_label]
                         sed_params = graybodies['sed_params'][id_label]
-                        # print(zlab, plab)
-                        # print(sed_params)
                         T_obs = sed_params['T_observed'].value
                         T_rf = T_obs * (1 + zmid)
                         wv_array = graybodies['wv_array']
                         sed_array = graybodies['graybody'][id_label]
 
-                        line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf)]  # ,
-                        #              "LIR={:.1f}".format(np.log10(LIR))]
-                        # pdb.set_trace()
+                        line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
+                                      "LIR={:.1f}".format(np.log10(LIR))]
                         axs[ip, iz].plot(wv_array, sed_array, label=line_label, color=colors[im])
                         axs[ip, iz].legend(loc='upper right')
 
@@ -528,21 +592,19 @@ class SimstackPlots(SimstackToolbox):
 
         else:
             fig, axs = plt.subplots(1, zlen, figsize=(36, 10))
-            for iz, zlab in enumerate(self.results_dict['SED_df']['flux_density']):
+            for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                 zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
-                for im, mlab in enumerate(self.results_dict['SED_df']['flux_density'][zlab]):
-                    sed = self.results_dict['SED_df']['flux_density'][zlab][mlab]
-                    std = self.results_dict['SED_df']['std_error'][zlab][mlab]
-                    axs[iz].scatter(sed.index, sed.values)
+                for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                    id_label = "__".join([zlab, mlab])
 
-                    LIR = self.results_dict['SED_df']['LIR'][zlab][mlab][0]
-                    sed_params = self.results_dict['SED_df']['SED'][zlab][mlab]
-                    # print(zlab, plab)
-                    # print(sed_params)
+                    axs[iz].scatter(wvs, seds[:, iz, im],)
+
+                    LIR = graybodies['lir'][id_label]
+                    sed_params = graybodies['sed_params'][id_label]
                     T_obs = sed_params['T_observed'].value
                     T_rf = T_obs * (1 + zmid)
-                    wv_array = self.loggen(8, 1000, 100)
-                    sed_array = self.fast_sed(sed_params, wv_array)
+                    wv_array = graybodies['wv_array']
+                    sed_array = graybodies['graybody'][id_label]
 
                     line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
                                   "LIR={:.1f}".format(np.log10(LIR))]
