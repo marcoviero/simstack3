@@ -6,17 +6,18 @@ For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.
 If you've arrived via the newly published Viero & Moncelsi 2022, welcome, all code to reproduce the results is contained in this repository.  
 Find data products (e.g., maps, catalog, cosmos2020.ini) [here](https://sites.astro.caltech.edu/viero/simstack/cosmos/).
 --->
-Improvements include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
+Improvements on the original simstack code include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
 
 This stacking algorithm is separated into two distinct parts:
-1. Performing the stack and saving the results (can take a long time, so better to number of times you do this!)  
-2. Importing the saved results and plotting them.  
+1. Performing the stack and saving the results (this can take a long time, so better to limit the number of times you do this!)  
+2. Importing the saved results, and plotting them.  
 
 This has been tested on Windows and Mac. I've gone to great pains to make this simple to use.  Reach out if you encounter problems.  
 
 ## Setup
 ### Environment Variables
-First step is to set the environment variables for maps, catalogs, and pickles, which tells the code where to find the data.  
+Setting up environment variables is a good idea, especially if you have more than one computer.  It hard-codes the data paths for specific machines so you don't have to change the code every time you switch machines.  
+Create environment variables for maps, catalogs, and pickles, which tells the code where to find the data.  
 See instructions for [Mac/Linux](https://phoenixnap.com/kb/set-environment-variable-mac), 
 or [Windows](https://phoenixnap.com/kb/windows-set-environment-variable). You will only ever need to do this once. 
 
@@ -32,10 +33,10 @@ Setup a virtual environment with conda.  This ensures that you are using a clean
 This is easy to do in the [Anaconda Navigator GUI](https://medium.com/cluj-school-of-ai/python-environments-management-in-anaconda-navigator-ad2f0741eba7).  Alternatively from a terminal type:
 > conda create -n simstack python=3.9
 
-And then activate the environment.  This terminal is where you will run the python code (or open a Jupyter window.)
+And then activate the environment
 > conda activate simstack
 
-Do this second step every time you open a new terminal. 
+This terminal is where you will run the python code (or open a Jupyter window.)  Do this second step every time you open a new terminal. 
 
 ### Required Packages
 Within the simstack environment (i.e., after **conda activate simstack**), install:
@@ -51,16 +52,16 @@ Within the simstack environment (i.e., after **conda activate simstack**), insta
 
 ## Usage
 ### The Configuration File
-The code centers around the configuration file, config.ini (or whatever name you like.)  If simstack fails this is probably the first place to look.  
+The code centers around the configuration file, config.ini (or whatever name you like.)  If simstack fails this is probably the first place to look.  **Note, in the configuration file 1 is True and 0 is False**.
 
 We use uvista.ini as an example of the format. The configuration file has the following sections:
 #### general
-> binning = {"stack_all_z_at_once": 0, "add_background": 1, "crop_circles": 1}
+> binning = {"stack_all_z_at_once": 1, "add_background": 1, "crop_circles": 1}
 - stack_all_z_at_once: (default True) True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
 - add_background: (default True) Adds an additional layer, a background of all 1's, to the simultaneous stack.
 - crop_circles: (default True) draw circles around each source in each layer and flatten, keeping only pixels in fit.
-> error_estimator = {"bootstrap": {"seed": 42, "iterations": 0}, "write_simmaps": 0}
-- bootstrap: Errors derived via. bootstrap. 
+> error_estimator = {"bootstrap": {"init": 1, "iterations": 0}, "write_simmaps": 0}
+- bootstrap: Errors derived via. bootstrap method.  Layer parameters are named incrementaly, beginning with "init", which also happens to define the seed for the random shuffling, so that the bootstrap is identical from band to band. 
 - write_simmaps: Write simulated image, e.g. each layer summed together, at each wavelength.
 > cosmology = Planck18
 - Options are: Planck15, Planck18
@@ -99,7 +100,20 @@ We use uvista.ini as an example of the format. The configuration file has the fo
   - path_map: Similar to above, where MAPSPATH is a pre-defined environment variable, and following is a directory in MAPSPATH.
   - path_noise: Similar to path_map.  If the signal and noise are in seperate layers in the the same, then this is identical to path_map.
     
-### Stacking with SIMSTACK
+### Error bars
+The preferred method for generating error bars with SIMSTACK is via the "bootstrap".  
+Unlike a traditional bootstrap, which draws from the original sample (with replacement, i.e., the same source can be drawn multiple times) 
+SIMSTACK splits the samples in each bin 80/20, and stacks them simultaneously.  This is keeping with the 
+motivation behind SIMSTACK in the first place, that correlated sources will bias the measurement, so all sources that generate signal must 
+be stacked together.  
+Note, this slows down the calculation considerably.  If you originally had 50 bins (e.g., 5 redshift, 5 stellar mass, 2 types), resulting in 
+stacking 50 layers (51 if you include background), the bootstrap calculation is 100 bins (101 with background), which requires a lot of RAM!
+If this is a problem you have two options:
+1. Stack in Redshift Layers
+2. Split the sample into redshift chunks, e.g., bins z=[0,1,2] and z=[2,3,4] in each chunk, and combine the results afterward.  
+See "Combining Results" for instructions on how to do this.  
+
+### Running SIMSTACK
 You can run the code in two ways, 
 - from the command line (i.e., in a terminal window), or 
 - in a Jupyter Notebook. 
