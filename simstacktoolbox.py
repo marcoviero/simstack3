@@ -303,8 +303,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         return return_dict
 
     def lambda_to_ghz(self, lam):
-        c = 299792458.0  # m/s
-        return np.array([1e-9 * c / (i * 1e-6) for i in lam])
+        c_light = 299792458.0  # m/s
+        return np.array([1e-9 * c_light / (i * 1e-6) for i in lam])
 
     def graybody_fn(self, theta, x):
         A, T = theta
@@ -331,8 +331,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         return graybody
 
     def fast_sed(self, m, wavelengths):
-
-        nu_in = np.array([c * 1.e6 / wv for wv in wavelengths])
+        c_light = 299792458.0  # m/s
+        nu_in = np.array([c_light * 1.e6 / wv for wv in wavelengths])
 
         v = m.valuesdict()
         A = np.asarray(v['A'])
@@ -405,7 +405,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             m = sed_params.params
         except:
             #pdb.set_trace()
-            print('fucked!')
+            #print('fucked!')
             m = fit_params
 
         return m
