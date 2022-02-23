@@ -28,12 +28,12 @@ class SimstackToolbox(SimstackCosmologyEstimators):
     def __init__(self):
         super().__init__()
 
-    def repopulate_self(self, imported_object):
+    #def repopulate_self(self, imported_object):
 
-        dict_list = dir(imported_object)
-        for i in dict_list:
-            if '__' not in i:
-                setattr(self, i, getattr(imported_object, i))
+    #    dict_list = dir(imported_object)
+    #    for i in dict_list:
+    #        if '__' not in i:
+    #            setattr(self, i, getattr(imported_object, i))
 
     def combine_objects(self, second_object):
 
@@ -97,7 +97,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, background_suffix, at_once_suffix, catalog_suffix, bootstrap_suffix])
 
-        pdb.set_trace()
+        #pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname
 
@@ -138,10 +138,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'drop_catalogs' in self.config_dict['io']:
             drop_catalogs = self.config_dict['io']['drop_catalogs']
 
-        #if 'shortname' in self.config_dict['io']:
-        #    shortname = self.config_dict['io']['shortname']
-        #else:
-        #    shortname = os.path.basename(self.config_dict['io']['config_ini']).split('.')[0]
         longname = self.config_dict['io']['longname']
         out_file_path = self.config_dict['io']['saved_data_path']
 
@@ -152,7 +148,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         # Write simmaps
         if self.config_dict["general"]["error_estimator"]["write_simmaps"] == 1:
-            #pdb.set_trace()
             for wv in self.maps_dict:
                 name_simmap = wv + '_simmap.fits'
                 hdu = fits.PrimaryHDU(self.maps_dict[wv]["flattened_simmap"], header=self.maps_dict[wv]["header"])
@@ -170,8 +165,12 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             self.catalog_dict = {}
             # self.catalog_dict['tables']['full_table'] = {}
 
-        with open(fpath, "wb") as pickle_file_path:
-            pickle.dump(self, pickle_file_path)
+        try:
+            with open(fpath, "wb") as pickle_file_path:
+                pickle.dump(self, pickle_file_path)
+        except:
+            print("Something wrong with save directory??")
+            pdb.set_trace()
 
         return fpath
 
@@ -284,24 +283,28 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         wv_array = self.loggen(8, 1000, 100)
         sed_params_dict = {}
         graybody_dict = {}
-        return_dict = {'sed_params': sed_params_dict, 'graybody': graybody_dict, 'wv_array': wv_array}
+        lir_dict = {}
+        return_dict = {'wv_array': wv_array, 'sed_params': sed_params_dict, 'graybody': graybody_dict, 'lir': lir_dict}
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
-                    label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+                    #label = "__".join([zlab, mlab, plab]).replace('.', 'p')
 
-                    y = sed_bootstrap_dict['sed_fluxes_dict'][label]
-                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][label], rowvar=False)
+                    y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
+                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+                    zin = sed_bootstrap_dict['z_median'][id_label]
 
                     sed_params_dict[id_label] = self.fast_sed_fitter(x, y, yerr)
                     graybody_dict[id_label] = self.fast_sed(sed_params_dict[id_label], wv_array)[0]
+                    theta = sed_params_dict[id_label]['A'].value, sed_params_dict[id_label]['T_observed'].value
+                    lir_dict[id_label] = self.fast_LIR(theta, zin)
 
         return return_dict
 
     def lambda_to_ghz(self, lam):
-        c = 299792458.0  # m/s
-        return np.array([1e-9 * c / (i * 1e-6) for i in lam])
+        c_light = 299792458.0  # m/s
+        return np.array([1e-9 * c_light / (i * 1e-6) for i in lam])
 
     def graybody_fn(self, theta, x):
         A, T = theta
@@ -328,8 +331,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         return graybody
 
     def fast_sed(self, m, wavelengths):
-
-        nu_in = np.array([c * 1.e6 / wv for wv in wavelengths])
+        c_light = 299792458.0  # m/s
+        nu_in = np.array([c_light * 1.e6 / wv for wv in wavelengths])
 
         v = m.valuesdict()
         A = np.asarray(v['A'])
@@ -402,12 +405,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             m = sed_params.params
         except:
             #pdb.set_trace()
-            print('fucked!')
+            #print('fucked!')
             m = fit_params
-
-
-        #print(z_in)
-        #print(m['T_observed'])
 
         return m
 
