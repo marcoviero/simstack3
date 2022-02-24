@@ -317,7 +317,7 @@ class SimstackPlots(SimstackToolbox):
             axs[0].plot(wvs, nuInuz, ls[ip], label=zlabel)
 
         axs[0].set_title('CIB by Redshift Contribution')
-        axs[0].set_xlabel('redshift')
+        axs[0].set_xlabel('wavelength [um]')
         axs[0].set_ylabel('nuInu [nW/m^2/sr]')
         axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
         axs[0].legend(loc='lower left')
@@ -330,7 +330,7 @@ class SimstackPlots(SimstackToolbox):
                 axs[1].set_ylim([1e-3, 1e2])
 
         axs[1].set_title('CIB by Stellar-Mass Contribution')
-        axs[1].set_xlabel('redshift')
+        axs[1].set_xlabel('wavelength [um]')
         axs[1].set_ylabel('nuInu [nW/m^2/sr]')
         axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
         axs[1].legend(loc='lower left')
@@ -377,7 +377,7 @@ class SimstackPlots(SimstackToolbox):
             axs[0].plot(wvs, nuInuzL + nuInuz, ls[ip], label=zlabel)
 
         axs[0].set_title('CIB by Redshift Contribution')
-        axs[0].set_xlabel('redshift')
+        axs[0].set_xlabel('wavelength [um]')
         axs[0].set_ylabel('nuInu [nW/m^2/sr]')
         if show_total:
             axs[0].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
@@ -393,7 +393,7 @@ class SimstackPlots(SimstackToolbox):
                 axs[1].set_ylim([5e-2, 1e1])
 
         axs[1].set_title('CIB by Stellar-Mass Contribution')
-        axs[1].set_xlabel('redshift')
+        axs[1].set_xlabel('wavelength [um]')
         axs[1].set_ylabel('nuInu [nW/m^2/sr]')
         if show_total:
             axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
@@ -737,7 +737,7 @@ class SimstackPlots(SimstackToolbox):
         else:
             print("Skipping SED plotting because only single wavelength measured.")
 
-    def plot_rest_frame_temperature(self, lir_in, ylim=[1e0, 2e2], xlog=False, ylog=True, fit_p=[1.3, 0.1]):
+    def plot_rest_frame_temperature(self, lir_in, ylim=[1, 100], xlog=False, ylog=True, fit_p=[1.35, 0.09], show_prior=False):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
@@ -750,7 +750,7 @@ class SimstackPlots(SimstackToolbox):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
                     if ip:
-                        t_obs[iz, im, ip] = lir_in['lir_dict'][id_label]['50']
+                        t_obs[iz, im, ip] = lir_in['Tobs_dict'][id_label]['50']
                         t_rf[iz, im, ip] = t_obs[iz, im, ip] * (1 + lir_in['z_median'][id_label])
                         sm[iz, im, ip] = lir_in['m_median'][id_label]
                         zmed[iz, im, ip] = lir_in['z_median'][id_label]
@@ -760,9 +760,16 @@ class SimstackPlots(SimstackToolbox):
             label = "n=" + '-'.join(mlab.split('_')[1:])
             axs.plot(zmed[:, im, 1], (t_rf[:, im, 1]), ":o", label=label)
         z_in = np.linspace(0, zmed[-1, 0, 1])
-        # fit_label = "Tprior = 10^({0:.1f} + {1:.1f}z)".format(fit_p[0], fit_p[1])
-        # axs.plot(z_in, (10 ** (fit_p[0] + fit_p[1] * z_in)), '--', label=fit_label)
+        if show_prior:
+            fit_label = "Tprior = 10^({0:.1f} + {1:.1f}z)".format(fit_p[0], fit_p[1])
+            axs.plot(z_in, (10 ** (fit_p[0] + fit_p[1] * z_in)), '--', label=fit_label)
         axs.plot(z_in, (1 + z_in) * 2.73, '--', label='CMB')
+
+        # The Literature:
+        axs.scatter(4.5, 47, c='k', s=80, marker='s', label='Bethermin 2020')
+        axs.errorbar(5.5, 38, 8, c='r', markersize=8, marker='s', label='Faisst 2020')
+        axs.errorbar(7, 52, 11, c='g', markersize=8, marker='s', label='Ferrara 2022')
+
         if xlog:
             axs.set_xscale('log')
         if ylog:
@@ -783,7 +790,7 @@ class SimstackPlots(SimstackToolbox):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
                     if ip:
-                        sfr[iz, im, ip] = conv_lir_to_sfr * 10 ** lir_in['lir_dict'][id_label]['50']
+                        sfr[iz, im, ip] = conv_lir_to_sfr * lir_in['lir_dict'][id_label]['50']
                         sm[iz, im, ip] = lir_in['m_median'][id_label]
 
         fig, axs = plt.subplots(1, 1, figsize=(10, 7))

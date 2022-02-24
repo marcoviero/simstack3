@@ -65,7 +65,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
     def construct_longname(self, basename):
         # shortname = cosmos2020_nuvrj_0p01_0p5_1_1p5_2_2p5_background_atonce_farmer_bootstrap_4
-        type_suffix = self.config_dict['split_type'] #self.config_dict['catalog']['classification']['split_type']
+        type_suffix = self.config_dict['catalog']['classification']['split_type']
         dist_bins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         dist_suffix = "_".join([str(i).replace('.', 'p') for i in dist_bins]).replace('p0_', '_')
         #dist_suffix = "_".join([str(len(dist_bins)-1), 'redshift_bins'])

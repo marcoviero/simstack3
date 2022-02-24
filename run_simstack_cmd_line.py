@@ -53,10 +53,10 @@ def main():
         datefmt='%Y-%d-%m %I:%M:%S %p')
 
     # Get parameters from the provided parameter file
-    try:
+    if len(sys.argv) > 1:
         param_file_path = sys.argv[1]
-    except:
-        param_file_path = os.path.join('config', 'cosmos2020_alt_binning.ini')
+    else:
+        param_file_path = os.path.join('config', 'example.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,

@@ -68,10 +68,8 @@ class SimstackCosmologyEstimators:
 
     def log_probability(self, theta, x, y, yerr, theta0):
         lp = self.log_prior_informative(theta, theta0)
-        #pdb.set_trace()
         if not np.isfinite(lp):
             return -np.inf
-        #print(lp, self.log_likelihood(theta, x, y, yerr))
         return lp + self.log_likelihood(theta, x, y, yerr)
 
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
@@ -108,8 +106,7 @@ class SimstackCosmologyEstimators:
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
-                    label = id_label.replace('.', 'p')
-                    # print(id_label)
+                    #label = id_label.replace('.', 'p')
                     ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
                             split_table.split_params == ip)
                     y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
@@ -131,7 +128,7 @@ class SimstackCosmologyEstimators:
 
     def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0,
                           mcmc_iterations=500, mcmc_discard=5):
-        #label = id_label.replace('.', 'p')
+
         if not z_median:
             z_label = id_label.split('_')[1:3]
             z_median = np.mean([float(i) for i in z_label])
@@ -171,9 +168,10 @@ class SimstackCosmologyEstimators:
 
     def get_lir_from_mcmc_samples(self, mcmc_samples, percentiles=[16, 25, 32, 50, 68, 75, 84]):
         lir_dict = {}
+        tobs_dict = {}
         bin_keys = list(self.config_dict['parameter_names'].keys())
 
-        return_dict = {'lir_dict': lir_dict, 'percentiles': percentiles,
+        return_dict = {'lir_dict': lir_dict, 'Tobs_dict': tobs_dict, 'percentiles': percentiles,
                        'z_median': mcmc_samples['z_median'], 'm_median': mcmc_samples['m_median'],
                        'ngals': mcmc_samples['ngals']}
 
@@ -192,12 +190,17 @@ class SimstackCosmologyEstimators:
 
                         for i, vpercentile in enumerate(percentiles):
                             if id_label not in lir_dict:
+                                tobs_dict[id_label] = {str(vpercentile): mcmc_out[1][i]}
                                 lir_dict[id_label] = \
-                                    {str(vpercentile): np.log10(
-                                        self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))}
+                                    {str(vpercentile):
+                                        self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median)}
+                                    #{str(vpercentile): np.log10(
+                                    #    self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))}
                             else:
+                                tobs_dict[id_label][str(vpercentile)] = mcmc_out[1][i]
                                 lir_dict[id_label][str(vpercentile)] = \
-                                    np.log10(self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))
+                                    self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median)
+                                    #np.log10(self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median))
 
         return return_dict
 
@@ -231,14 +234,18 @@ class SimstackCosmologyEstimators:
                         for ilir, vlir in enumerate(percentiles):
                             if id_label not in lird_dict:
                                 lird_dict[id_label] = \
-                                    {str(vlir): np.log10(
-                                        self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
-                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))}
+                                    {str(vlir): self.estimate_lird(lir_dict['lir_dict'][id_label][str(vlir)], ngals,
+                                                                   effective_map_area, zlo, zhi, completeness=comp)}
+                                    #{str(vlir): np.log10(
+                                    #    self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
+                                    #                       ngals, effective_map_area, zlo, zhi, completeness=comp))}
                             else:
                                 lird_dict[id_label][str(vlir)] = \
-                                    np.log10(
-                                        self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
-                                                           ngals, effective_map_area, zlo, zhi, completeness=comp))
+                                        self.estimate_lird(lir_dict['lir_dict'][id_label][str(vlir)], ngals,
+                                                           effective_map_area, zlo, zhi, completeness=comp)
+                                    #np.log10(
+                                    #    self.estimate_lird(10 ** lir_dict['lir_dict'][id_label][str(vlir)],
+                                    #                       ngals, effective_map_area, zlo, zhi, completeness=comp))
 
         return results_dict
 
@@ -253,15 +260,17 @@ class SimstackCosmologyEstimators:
         for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
-                    id_label = "__".join([zlab, mlab, plab])  # .replace('.','p')
+                    id_label = "__".join([zlab, mlab, plab])
 
                     if id_label in lird_dict['lird_dict']:
-                        lird_array_mid[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label]['50']
-                        lird_array_lo[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[0]]
-                        lird_array_hi[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[1]]
-
+                        lird_array_mid[iz, im, ip] = lird_dict['lird_dict'][id_label]['50']
+                        lird_array_lo[iz, im, ip] = lird_dict['lird_dict'][id_label][errors[0]]
+                        lird_array_hi[iz, im, ip] = lird_dict['lird_dict'][id_label][errors[1]]
+                        #lird_array_mid[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label]['50']
+                        #lird_array_lo[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[0]]
+                        #lird_array_hi[iz, im, ip] = 10 ** lird_dict['lird_dict'][id_label][errors[1]]
         lird_total = np.sum(lird_array_mid[:, :, 1], axis=1) + np.sum(lird_array_mid[:, :, 0], axis=1)
-        # lird_error = np.sqrt(np.sum(((10 ** lird_array_hi[:, :, 1] - 10 ** lird_array_lo[:, :, 1]) ** 2), axis=1))
+        # lird_error = np.sqrt(np.sum(((lird_array_hi[:, :, 1] - lird_array_lo[:, :, 1]) ** 2), axis=1))
         lird_error = np.sqrt(np.sum(
             (((lird_array_hi[:, :, 1] - lird_array_lo[:, :, 1])) ** 2) * lird_array_mid[:, :, 1],
             axis=1) / np.sum(lird_array_mid[:, :, 1], axis=1))
@@ -282,12 +291,12 @@ class SimstackCosmologyEstimators:
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
-                    #label = "__".join([zlab, mlab, plab]).replace('.', 'p')
                     if id_label in sed_bootstrap_dict['sed_fluxes_dict']:
                         y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
-                        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+                        #yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
                         ngals = sed_bootstrap_dict['ngals'][id_label]
-                        nuInu[id_label] = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
+                        inuInu = self.estimate_nuInu(wvs, y, area_deg2, ngals, completeness=1)
+                        nuInu[id_label] = np.max([inuInu, inuInu * 0], axis=0)
 
         return cib_dict_out
 
