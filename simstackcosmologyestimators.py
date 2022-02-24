@@ -3,6 +3,8 @@ import os
 import shutil
 import logging
 import emcee
+import scipy
+from scipy.integrate import quad
 import numpy as np
 from astropy.io import fits
 from lmfit import Parameters, minimize, fit_report
@@ -34,16 +36,49 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return ll
 
-    def log_prior(self, theta, theta0):
+    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
+
+        _sed_params = Parameters()
+        _sed_params.add('A', value=theta[0], vary=True)
+        _sed_params.add('T_observed', value=theta[1], vary=True)
+        _sed_params.add('beta', value=1.8, vary=False)
+        _sed_params.add('alpha', value=2.0, vary=False)
+
+        y_model_d = self.fast_lmfit_sed(_sed_params, x_d)
+
+        # log likelihood for detections
+        delta_y = y_d - y_model_d[0]
+        ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y))
+                       )#+ len(y_d) * np.log(2 * np.pi)
+                       #+ np.log(np.linalg.det(cov_d)))
+
+        # log likelihood for non-detections
+        ll_nd = 0.
+        if x_nd is not None:
+            y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
+            for j, y_nd_j in enumerate(y_nd):
+                _integrand_j = lambda yy: np.exp(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2)
+                _integral_j = quad(_integrand_j, 0., y_nd_j)[0]
+                ll_nd += np.log(_integral_j)
+        else:
+            pass
+
+        if not np.isfinite(ll_d - ll_nd):
+            return -np.inf
+
+        return ll_d + ll_nd
+
+    def log_prior(self, theta):
         A, T = theta
-        A0, T0, sigma_A, sigma_T = theta0
+        #A0, T0, sigma_A, sigma_T = theta0
         Amin = -42
         Amax = -26
         Tmin = 1
         Tmax = 32
 
-        if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None:
-            return 0.0
+        #if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None:
+        if Amin < A < Amax and Tmin < T < Tmax:
+                return 0.0
 
         return -np.inf
 
@@ -72,12 +107,55 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return lp + self.log_likelihood(theta, x, y, yerr)
 
+    def log_probability_full(self, theta, theta0, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
+        # lp = log_prior_informative(theta, theta0)
+        lp = self.log_prior(theta)
+        if not np.isfinite(lp):
+            return -np.inf
+        return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd)
+
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
         pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
         nwalkers, ndim = pos.shape
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, self.log_probability, args=(x, y, yerr, theta)
+        )
+        sampler.run_mcmc(pos, mcmc_iterations, progress=True)
+        flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
+
+        return flat_samples
+
+    def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
+
+        pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
+        nwalkers, ndim = pos.shape
+
+        # Define non-detection as 1-sigma error below 0
+        yerr_diag = np.diag(yerr)
+        ind_nd = (y - np.sqrt(yerr_diag)) < 0
+
+        # Split detections and non-detections (nd). Remove nd rows/columns from yerr matrix
+        x = np.array(x)
+        wvs = x[ind_nd == False]
+        fluxes = y[ind_nd == False]
+        cov_fluxes = yerr
+        if np.sum(ind_nd):
+            for i in np.where(ind_nd)[::-1]:
+                cov_fluxes = np.delete(cov_fluxes, i, axis=0)
+                cov_fluxes = np.delete(cov_fluxes, i, axis=1)
+
+            wvs_nd = x[ind_nd == True]
+            fluxes_nd = y[ind_nd == True]
+            dfluxes_nd = yerr_diag[ind_nd == True]
+        else:
+            wvs_nd = None
+            fluxes_nd = None
+            dfluxes_nd = None
+
+        # pdb.set_trace()
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, self.log_probability_full, args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd)
         )
         sampler.run_mcmc(pos, mcmc_iterations, progress=True)
         flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
@@ -159,7 +237,7 @@ class SimstackCosmologyEstimators:
         theta0 = Ain, Tin, Aerr, Terr
 
         if np.isfinite(np.log(np.linalg.det(yerr))):
-            flat_samples = self.mcmc_sed_estimator(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
+            flat_samples = self.mcmc_sed_estimator_new(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
                                               mcmc_discard=mcmc_discard)
         else:
             return -np.inf
