@@ -21,7 +21,7 @@ a_nu_flux_to_mass = 6.7e19
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
-sigma_upper_limit = 3
+sigma_upper_limit = 2
 
 class SimstackCosmologyEstimators:
 
@@ -66,8 +66,13 @@ class SimstackCosmologyEstimators:
         else:
             pass
 
-        if not np.isfinite(ll_d - ll_nd):
-            return -np.inf
+        if not np.isfinite(ll_d + ll_nd):
+            if np.isfinite(ll_d):
+                return ll_d
+            else:
+                return -np.inf
+        # if not np.isfinite(ll_d + ll_nd):
+        #    return -np.inf
 
         return ll_d + ll_nd
 
