@@ -495,8 +495,12 @@ class SimstackPlots(SimstackToolbox):
                             axs[ix, iz].set_title(zlab)
 
                         # pdb.set_trace()
-                        mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(mcmc_out[0][1],
-                                                                     mcmc_out[1][1] * (1 + z_med[id_label]))
+                        LIR = self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_med[id_label])
+                        mcmc_label = "A={0:.1f}, T={1:.1f}, LIR={2:.1f}".format(mcmc_out[0][1],
+                                                                                mcmc_out[1][1] * (1 + z_med[id_label]),
+                                                                                LIR)
+                        #mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(mcmc_out[0][1],
+                        #                                             mcmc_out[1][1] * (1 + z_med[id_label]))
 
                         axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
                         axs[ix, iz].fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
@@ -539,9 +543,23 @@ class SimstackPlots(SimstackToolbox):
                                     # pdb.set_trace()
                                     axs[ix, iz].scatter(wvs, yplot_boot, color=color, alpha=0.1)
 
-                            axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
-                            axs[ix, iz].errorbar(wv, y[iwv] * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
-                                                 fmt="." + color, capsize=0)
+                            #axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
+                            #axs[ix, iz].errorbar(wv, y[iwv] * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                            #                     fmt="." + color, capsize=0)
+
+                            yerr_diag = np.sqrt(np.diag(yerr)[iwv])
+                            sigma_upper_limit = 3
+                            if y[iwv] - yerr_diag < 0:
+                                #yplot = y[iwv] / yerr_diag * sigma_upper_limit
+                                yplot = yerr_diag * sigma_upper_limit
+                                axs[ix, iz].errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                                             fmt="." + color, uplims=True)
+                            else:
+                                uplims = False
+                                yplot = y[iwv]
+                                axs[ix, iz].scatter(wv, yplot * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
+                                axs[ix, iz].errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                                             fmt="." + color, capsize=0)
 
                         axs[ix, iz].set_xscale('log')
                         axs[ix, iz].set_yscale('log')
@@ -769,6 +787,10 @@ class SimstackPlots(SimstackToolbox):
         axs.scatter(4.5, 47, c='k', s=80, marker='s', label='Bethermin 2020')
         axs.errorbar(5.5, 38, 8, c='r', markersize=8, marker='s', label='Faisst 2020')
         axs.errorbar(7, 52, 11, c='g', markersize=8, marker='s', label='Ferrara 2022')
+
+        xmod = np.linspace(0, 8)
+        axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber 2018')
+        axs.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero 2013')
 
         if xlog:
             axs.set_xscale('log')

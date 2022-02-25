@@ -37,7 +37,7 @@ class SimstackCosmologyEstimators:
         return ll
 
     def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
-
+        sigma_upper_limit = 3
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
         _sed_params.add('T_observed', value=theta[1], vary=True)
@@ -58,7 +58,9 @@ class SimstackCosmologyEstimators:
             y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
             for j, y_nd_j in enumerate(y_nd):
                 _integrand_j = lambda yy: np.exp(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2)
-                _integral_j = quad(_integrand_j, 0., y_nd_j)[0]
+                #_integral_j = quad(_integrand_j, 0., y_nd_j)[0]
+                _integral_j = quad(_integrand_j, 0., y_nd_j/dy_nd[j]*sigma_upper_limit)[0]
+                #_integral_j = quad(_integrand_j, 0., dy_nd[j] * sigma_upper_limit)[0]
                 ll_nd += np.log(_integral_j)
         else:
             pass
@@ -128,7 +130,9 @@ class SimstackCosmologyEstimators:
 
     def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
-        pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
+        pos = np.array([theta[0], theta[1]]) + 5e-2 * np.random.randn(32, 2)
+        pos[:, 0] += theta[2] * np.random.randn(32)
+        pos[:, 1] += theta[3] * np.random.randn(32)
         nwalkers, ndim = pos.shape
 
         # Define non-detection as 1-sigma error below 0
