@@ -21,6 +21,7 @@ a_nu_flux_to_mass = 6.7e19
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
+sigma_upper_limit = 3
 
 class SimstackCosmologyEstimators:
 
@@ -37,7 +38,7 @@ class SimstackCosmologyEstimators:
         return ll
 
     def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
-        sigma_upper_limit = 3
+
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
         _sed_params.add('T_observed', value=theta[1], vary=True)
@@ -116,6 +117,9 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd)
 
+    def target_function(self, theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd):
+        return -self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd)
+
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
         pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
@@ -130,7 +134,63 @@ class SimstackCosmologyEstimators:
 
     def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
-        pos = np.array([theta[0], theta[1]]) + 5e-2 * np.random.randn(32, 2)
+        percent_min = 0.005
+        percent_max = 0.025
+
+        # Define non-detection as 1-sigma error below 0
+        yerr_diag = np.diag(yerr)
+        ind_nd = (y - np.sqrt(yerr_diag)) < 0
+
+        # Split detections and non-detections (nd). Remove nd rows/columns from yerr matrix
+        x = np.array(x)
+        wvs = x[ind_nd == False]
+        fluxes = y[ind_nd == False]
+        cov_fluxes = yerr
+        if np.sum(ind_nd):
+            for i in np.where(ind_nd)[::-1]:
+                cov_fluxes = np.delete(cov_fluxes, i, axis=0)
+                cov_fluxes = np.delete(cov_fluxes, i, axis=1)
+
+            wvs_nd = x[ind_nd == True]
+            fluxes_nd = y[ind_nd == True]
+            dfluxes_nd = yerr_diag[ind_nd == True]
+        else:
+            wvs_nd = None
+            fluxes_nd = None
+            dfluxes_nd = None
+
+        #result = scipy.optimize.minimize(self.target_function, x0=[theta_in[0], theta_in[1]],
+        #                                 args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd))
+        #if np.isfinite(result['x'][0]):
+        #    theta = np.array([result['x'][0], result['x'][1], 0.01 * result['x'][0], 0.01 * result['x'][1]])
+        #else:
+        #    theta = theta_in
+
+        pos = np.array([theta[0], theta[1]]) + 1e-2 * np.random.randn(32, 2)
+        pos[:, 0] += np.min([np.max([theta[2], theta[0] * percent_min]), theta[0] * percent_max]) * np.random.randn(32)
+        pos[:, 1] += np.min([np.max([theta[3], theta[1] * percent_min]), theta[1] * percent_max]) * np.random.randn(32)
+        # pos[:,0] += theta[2] * np.random.randn(32)
+        # pos[:,1] += theta[3] * np.random.randn(32)
+        nwalkers, ndim = pos.shape
+        p0_val = np.min([np.max([abs(theta[2]), abs(theta[0] * percent_min)]), abs(theta[0] * percent_max)])
+        p1_val = np.min([np.max([theta[3], theta[1] * percent_min]), theta[1] * percent_max])
+        # theta_label = "A0={0:.1f}+-{2:.3f}, T0={1:.1f}+-{3:.3f}".format(*theta)
+        theta_label = "Aw={0:.1f}+-{1:.3f}, Tw={2:.1f}+-{3:.3f}".format(theta[0], p0_val, theta[1], p1_val)
+        #print("A0={0:.1f}+-{2:.3f}, T0={1:.1f}+-{3:.3f}".format(*theta))
+        #print(theta_label)
+
+        # pdb.set_trace()
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, self.log_probability_full, args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd)
+        )
+        sampler.run_mcmc(pos, mcmc_iterations, progress=True)
+        flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
+
+        return flat_samples
+
+    def mcmc_sed_estimator_new_orig(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
+
+        pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
         pos[:, 0] += theta[2] * np.random.randn(32)
         pos[:, 1] += theta[3] * np.random.randn(32)
         nwalkers, ndim = pos.shape

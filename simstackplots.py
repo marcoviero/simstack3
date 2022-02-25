@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
+sigma_upper_limit = 3
 
 class SimstackPlots(SimstackToolbox):
 
@@ -548,7 +549,6 @@ class SimstackPlots(SimstackToolbox):
                             #                     fmt="." + color, capsize=0)
 
                             yerr_diag = np.sqrt(np.diag(yerr)[iwv])
-                            sigma_upper_limit = 3
                             if y[iwv] - yerr_diag < 0:
                                 #yplot = y[iwv] / yerr_diag * sigma_upper_limit
                                 yplot = yerr_diag * sigma_upper_limit
