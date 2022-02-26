@@ -74,6 +74,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         catalog_suffix = ''
         bootstrap_suffix = ''
         stellar_mass_suffix = ''
+        shuffle_suffix = ''
         if 'stellar_mass' in self.config_dict['catalog']['classification']:
             mass_bins = json.loads(self.config_dict['catalog']['classification']['stellar_mass']['bins'])
             stellar_mass_suffix = "_".join([str(len(mass_bins)-1), 'stellar_mass_bins'])
@@ -94,10 +95,14 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                 bootstrap_suffix = "_".join(['bootstrap',
                                              str(self.config_dict['general']['error_estimator']['bootstrap']['iterations'])])
                 bootstrap_suffix = "_".join(['bootstrap', "-".join([str(first_boot), str(last_boot)])])
+        if 'randomize' in self.config_dict['general']['error_estimator']:
+            if self.config_dict['general']['error_estimator']['randomize']:
+                shuffle_suffix = 'shuffled'
 
-        longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, background_suffix, at_once_suffix, catalog_suffix, bootstrap_suffix])
+        longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, background_suffix, at_once_suffix,
+                             catalog_suffix, bootstrap_suffix, shuffle_suffix])
 
-        #pdb.set_trace()
+        pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname
 
