@@ -5,6 +5,7 @@ import logging
 import emcee
 import scipy
 from scipy.integrate import quad
+import decimal
 import numpy as np
 from astropy.io import fits
 from lmfit import Parameters, minimize, fit_report
@@ -37,7 +38,7 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return ll
 
-    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
+    def log_likelihood_full0(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
 
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
@@ -54,25 +55,86 @@ class SimstackCosmologyEstimators:
                        #+ np.log(np.linalg.det(cov_d)))
 
         # log likelihood for non-detections
+        #ll_nd = 0.
+        #if x_nd is not None:
+        #    y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
+        #    for j, y_nd_j in enumerate(y_nd):
+        #        _integrand_j = lambda yy: np.exp(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2)
+        #        #_integral_j = quad(_integrand_j, 0., y_nd_j)[0]
+        #        _integral_j = quad(_integrand_j, 0., y_nd_j/dy_nd[j]*sigma_upper_limit)[0]
+        #        #_integral_j = quad(_integrand_j, 0., dy_nd[j] * sigma_upper_limit)[0]
+        #        ll_nd += np.log(_integral_j)
+        #else:
+        #    pass
+
+        # log likelihood for non-detections
         ll_nd = 0.
         if x_nd is not None:
             y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
             for j, y_nd_j in enumerate(y_nd):
-                _integrand_j = lambda yy: np.exp(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2)
-                #_integral_j = quad(_integrand_j, 0., y_nd_j)[0]
-                _integral_j = quad(_integrand_j, 0., y_nd_j/dy_nd[j]*sigma_upper_limit)[0]
-                #_integral_j = quad(_integrand_j, 0., dy_nd[j] * sigma_upper_limit)[0]
-                ll_nd += np.log(_integral_j)
+                _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]*sigma_upper_limit) ** 2))
+                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., y_nd_j, 100)])
+                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., y_nd_j, 100)])
+                _integral_j = ((_ypts_j[1:] + _ypts_j[:-1]) * (_xpts_j[1:] - _xpts_j[:-1]) / decimal.Decimal(2)).sum()
+                #pdb.set_trace()
+                #if _integral_j > 0:
+                try:
+                    ll_nd += float(_integral_j.ln())
+                except:
+                    pdb.set_trace()
         else:
             pass
 
+        #if not np.isfinite(ll_d + ll_nd):
+        #    if np.isfinite(ll_d):
+        #        return ll_d
+        #    else:
+        #        return -np.inf
         if not np.isfinite(ll_d + ll_nd):
-            if np.isfinite(ll_d):
-                return ll_d
-            else:
-                return -np.inf
-        # if not np.isfinite(ll_d + ll_nd):
-        #    return -np.inf
+            return -np.inf
+
+        return ll_d + ll_nd
+
+    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None):
+
+        BETA_VALUE = 1.8
+        ALPHA_VALUE = 2.0
+        _sed_params = Parameters()
+        _sed_params.add('A', value=theta[0], vary=True)
+        _sed_params.add('T_observed', value=theta[1], vary=True)
+        _sed_params.add('beta', value=BETA_VALUE, vary=False)
+        _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
+
+        y_model_d = self.fast_lmfit_sed(_sed_params, x_d)
+
+        # log likelihood for detections
+        delta_y = y_d - y_model_d[0]
+        ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y)))
+        # + len(y_d) * np.log(2 * np.pi)
+        # + np.log(np.linalg.det(cov_d)))
+
+        # log likelihood for non-detections
+        ll_nd = 0.
+        if x_nd is not None:
+            y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
+            for j, y_nd_j in enumerate(y_nd):
+                #_integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2))
+                _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd[j])))
+                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., y_nd_j, 100)])
+                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., y_nd_j, 100)])
+                _integral_j = ((_ypts_j[1:] + _ypts_j[:-1]) * (_xpts_j[1:] - _xpts_j[:-1]) / decimal.Decimal(2)).sum()
+
+                try:
+                    ll_nd += float(_integral_j.ln())
+                except:
+                    pdb.set_trace()
+        else:
+            pass
+
+        # print('check ll_d and ll_nd:', ll_d, ll_nd)
+
+        if not np.isfinite(ll_d + ll_nd):
+            return -np.inf
 
         return ll_d + ll_nd
 
