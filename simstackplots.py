@@ -96,7 +96,7 @@ class SimstackPlots(SimstackToolbox):
         else:
             print("Skipping SED plotting because only single wavelength measured.")
 
-    def plot_flux_densities(self):
+    def plot_flux_densities(self, ylog=True):
         wv_keys = list(self.results_dict['band_results_dict'].keys())
         wlen = len(wv_keys)
         if len(self.config_dict['parameter_names']) == 3:
@@ -118,9 +118,9 @@ class SimstackPlots(SimstackToolbox):
                                 axs[ip, iwv].set_xlabel('redshift')
                             if not iwv:
                                 axs[ip, iwv].set_ylabel('flux density (Jy)')
-                            axs[ip, iwv].set_yscale('log')
-                            # axs[ip, iwv].set_xlim([0., 8])
-                            axs[ip, iwv].set_ylim([1e-3, 5e1])
+                            if ylog:
+                                axs[ip, iwv].set_yscale('log')
+                                axs[ip, iwv].set_ylim([1e-3, 5e1])
                             if (ip == 1) & (iwv == 0):
                                 axs[ip, iwv].legend(loc='upper right')
                         else:
@@ -134,9 +134,9 @@ class SimstackPlots(SimstackToolbox):
                                 axs[ip].set_xlabel('redshift')
                             if not iwv:
                                 axs[ip].set_ylabel('flux density (Jy)')
-                            axs[ip].set_yscale('log')
-                            # axs[ip].set_xlim([0., 8])
-                            axs[ip].set_ylim([1e-3, 5e1])
+                            if ylog:
+                                axs[ip].set_yscale('log')
+                                axs[ip].set_ylim([1e-3, 5e1])
                             if (ip == 1):
                                 axs[ip].legend(loc='upper right')
         else:
@@ -154,8 +154,9 @@ class SimstackPlots(SimstackToolbox):
                     axs[iwv].set_xlabel('redshift')
                     if not iwv:
                         axs[iwv].set_ylabel('flux density (Jy)')
-                    axs[iwv].set_yscale('log')
-                    axs[iwv].set_ylim([1e-3, 5e1])
+                    if ylog:
+                        axs[iwv].set_yscale('log')
+                        axs[iwv].set_ylim([1e-3, 5e1])
                     if (iwv == 0):
                         axs[iwv].legend(loc='upper right')
 
