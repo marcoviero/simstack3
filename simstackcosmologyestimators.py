@@ -109,23 +109,18 @@ class SimstackCosmologyEstimators:
 
         # log likelihood for detections
         delta_y = y_d - y_model_d[0]
-        ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y)))
-        # + len(y_d) * np.log(2 * np.pi)
-        # + np.log(np.linalg.det(cov_d)))
+        ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y))
+                       + len(y_d) * np.log(2 * np.pi)
+                       + np.log(np.linalg.det(cov_d)))
 
         # log likelihood for non-detections
         ll_nd = 0.
         if x_nd is not None:
             y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
-            for j, y_nd_j in enumerate(y_nd):
-                #_integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2))
-                _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd[j])))
-                #_ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., y_nd_j, 100)])
-                #_xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., y_nd_j, 100)])
-                #_ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
-                #_xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
-                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.abs(dy_nd[j]) * sigma_upper_limit, 100)])
-                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.abs(dy_nd[j]) * sigma_upper_limit, 100)])
+            for j, dy_nd_j in enumerate(dy_nd):
+                _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd_j)))
+                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.sqrt(dy_nd_j) * sigma_upper_limit, 100)])
+                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.sqrt(dy_nd_j) * sigma_upper_limit, 100)])
                 _integral_j = ((_ypts_j[1:] + _ypts_j[:-1]) * (_xpts_j[1:] - _xpts_j[:-1]) / decimal.Decimal(2)).sum()
 
                 try:
@@ -144,13 +139,11 @@ class SimstackCosmologyEstimators:
 
     def log_prior(self, theta):
         A, T = theta
-        #A0, T0, sigma_A, sigma_T = theta0
         Amin = -42
         Amax = -26
         Tmin = 1
         Tmax = 20  #32
 
-        #if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None:
         if Amin < A < Amax and Tmin < T < Tmax:
                 return 0.0
 
