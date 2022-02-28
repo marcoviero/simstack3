@@ -22,7 +22,7 @@ a_nu_flux_to_mass = 6.7e19
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
-sigma_upper_limit = 2
+sigma_upper_limit = 3
 
 class SimstackCosmologyEstimators:
 
@@ -120,8 +120,12 @@ class SimstackCosmologyEstimators:
             for j, y_nd_j in enumerate(y_nd):
                 #_integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) / dy_nd[j]) ** 2))
                 _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd[j])))
-                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
-                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
+                #_ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., y_nd_j, 100)])
+                #_xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., y_nd_j, 100)])
+                #_ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
+                #_xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.abs(y_nd_j)/dy_nd[j]*sigma_upper_limit, 100)])
+                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.abs(dy_nd[j]) * sigma_upper_limit, 100)])
+                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.abs(dy_nd[j]) * sigma_upper_limit, 100)])
                 _integral_j = ((_ypts_j[1:] + _ypts_j[:-1]) * (_xpts_j[1:] - _xpts_j[:-1]) / decimal.Decimal(2)).sum()
 
                 try:
@@ -144,7 +148,7 @@ class SimstackCosmologyEstimators:
         Amin = -42
         Amax = -26
         Tmin = 1
-        Tmax = 32
+        Tmax = 20  #32
 
         #if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None:
         if Amin < A < Amax and Tmin < T < Tmax:

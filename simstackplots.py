@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
-sigma_upper_limit = 2
+sigma_upper_limit = 3
 
 class SimstackPlots(SimstackToolbox):
 
