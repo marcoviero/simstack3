@@ -65,7 +65,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
     def construct_longname(self, basename):
         # shortname = cosmos2020_nuvrj_0p01_0p5_1_1p5_2_2p5_background_atonce_farmer_bootstrap_4
-        type_suffix = self.config_dict['catalog']['classification']['split_type']
+        type_suffix = "atonce" #self.config_dict['catalog']['classification']['split_type']
         dist_bins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         dist_suffix = "_".join([str(i).replace('.', 'p') for i in dist_bins]).replace('p0_', '_')
         #dist_suffix = "_".join([str(len(dist_bins)-1), 'redshift_bins'])
@@ -90,7 +90,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'bootstrap' in self.config_dict['general']['error_estimator']:
             if self.config_dict['general']['error_estimator']['bootstrap']['iterations']:
                 first_boot = self.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
-                last_boot = first_boot + self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+                last_boot = first_boot + self.config_dict['general']['error_estimator']['bootstrap']['iterations'] #- 1
                 bootstrap_suffix = "_".join(['bootstrap',
                                              str(self.config_dict['general']['error_estimator']['bootstrap']['iterations'])])
                 bootstrap_suffix = "_".join(['bootstrap', "-".join([str(first_boot), str(last_boot)])])
@@ -398,6 +398,21 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
     #def weaver_completeness(self, z):
     #    return -3.55 * 1e8 * (1 + z) + 2.70 * 1e8 * (1 + z) ** 2.0
+
+    def moster2011_cosmic_variance(self, z, dz=0.2, field='cosmos'):
+        cv_params = {'cosmos': [0.069, -.234, 0.834], 'udf': [0.251, 0.364, 0.358]
+            , 'goods': [0.261, 0.854, 0.684], 'gems': [0.161, 0.520, 0.729]
+            , 'egs': [0.128, 0.383, 0.673]}
+
+        field_params = cv_params[field]
+        sigma_cv_ref = field_params[0] / (z ** field_params[2] + field_params[1])
+
+        if dz == 0.2:
+            sigma_cv = sigma_cv_ref
+        else:
+            sigma_cv = sigma_cv_ref * (dz / 0.2) ** (-0.5)
+
+        return sigma_cv
 
     def estimate_quadri_correction(self, z, m):
         # uVista Completeness
