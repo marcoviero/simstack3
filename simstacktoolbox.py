@@ -64,8 +64,11 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                     second_object.results_dict['band_results_dict'][key][boot_label])
 
     def construct_longname(self, basename):
-        # shortname = cosmos2020_nuvrj_0p01_0p5_1_1p5_2_2p5_background_atonce_farmer_bootstrap_4
-        type_suffix = "atonce" #self.config_dict['catalog']['classification']['split_type']
+        try:
+            type_suffix = self.config_dict['catalog']['classification']['split_type']
+        except:
+            type_suffix = "nuvrj"
+
         dist_bins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         dist_suffix = "_".join([str(i).replace('.', 'p') for i in dist_bins]).replace('p0_', '_')
         #dist_suffix = "_".join([str(len(dist_bins)-1), 'redshift_bins'])
@@ -76,7 +79,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         stellar_mass_suffix = ''
         if 'stellar_mass' in self.config_dict['catalog']['classification']:
             mass_bins = json.loads(self.config_dict['catalog']['classification']['stellar_mass']['bins'])
-            stellar_mass_suffix = "_".join([str(len(mass_bins)-1), 'stellar_mass_bins'])
+            stellar_mass_suffix = "_".join(['X', str(len(mass_bins)-1)])
         if 'add_background' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['add_background']:
                 background_suffix = 'background'
@@ -90,12 +93,11 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'bootstrap' in self.config_dict['general']['error_estimator']:
             if self.config_dict['general']['error_estimator']['bootstrap']['iterations']:
                 first_boot = self.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
-                last_boot = first_boot + self.config_dict['general']['error_estimator']['bootstrap']['iterations'] #- 1
-                bootstrap_suffix = "_".join(['bootstrap',
-                                             str(self.config_dict['general']['error_estimator']['bootstrap']['iterations'])])
+                last_boot = first_boot + self.config_dict['general']['error_estimator']['bootstrap']['iterations'] - 1
                 bootstrap_suffix = "_".join(['bootstrap', "-".join([str(first_boot), str(last_boot)])])
 
-        longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, background_suffix, at_once_suffix, catalog_suffix, bootstrap_suffix])
+        longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, at_once_suffix,
+                             catalog_suffix, bootstrap_suffix])
 
         #pdb.set_trace()
         self.config_dict['io']['longname'] = longname
@@ -174,10 +176,16 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return fpath
 
-    def import_saved_pickles(self, pickle_fn):
+    @classmethod
+    def import_saved_pickles(cls, pickle_fn):
         with open(pickle_fn, "rb") as file_path:
             encoding = pickle.load(file_path)
         return encoding
+
+    @classmethod
+    def save_to_pickles(cls, save_path, save_file):
+        with open(save_path, "wb") as pickle_file_path:
+            pickle.dump(save_file, pickle_file_path)
 
     def parse_path(self, path_in):
         # print(path_in)
@@ -306,11 +314,9 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         c_light = 299792458.0  # m/s
         return np.array([1e-9 * c_light / (i * 1e-6) for i in lam])
 
-    def graybody_fn(self, theta, x):
+    def graybody_fn(self, theta, x, alphain=2.0, betain=1.8):
         A, T = theta
 
-        alphain = 2.0
-        betain = 1.8
         c_light = 299792458.0  # m/s
 
         nu_in = np.array([c_light * 1.e6 / wv for wv in x])
@@ -331,56 +337,15 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         return graybody
 
     def fast_sed(self, m, wavelengths):
-        c_light = 299792458.0  # m/s
-        nu_in = np.array([c_light * 1.e6 / wv for wv in wavelengths])
 
         v = m.valuesdict()
         A = np.asarray(v['A'])
         T = np.asarray(v['T_observed'])
         betain = np.asarray(v['beta'])
         alphain = np.asarray(v['alpha'])
-        ng = np.size(A)
+        theta_in = A, T
 
-        base = 2.0 * (6.626) ** (-2.0 - betain - alphain) * (1.38) ** (3. + betain + alphain) / (2.99792458) ** 2.0
-        expo = 34.0 * (2.0 + betain + alphain) - 23.0 * (3.0 + betain + alphain) - 16.0 + 26.0
-        K = base * 10.0 ** expo
-        w_num = 10 ** A * K * (T * (3.0 + betain + alphain)) ** (3.0 + betain + alphain)
-        w_den = (np.exp(3.0 + betain + alphain) - 1.0)
-        w_div = w_num / w_den
-        nu_cut = (3.0 + betain + alphain) * 0.208367e11 * T
-        graybody = np.reshape(10 ** A, (ng, 1)) * nu_in ** np.reshape(betain, (ng, 1)) * self.black(nu_in, T) / 1000.0
-        powerlaw = np.reshape(w_div, (ng, 1)) * nu_in ** np.reshape(-1.0 * alphain, (ng, 1))
-        graybody[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))] = \
-            powerlaw[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))]
-
-        return graybody
-
-    def fast_lmfit_sed(self, m, wavelengths):
-        c = 299792458.0  # m/s
-        nu_in = np.array([c * 1.e6 / wv for wv in wavelengths])
-
-        v = m.valuesdict()
-        A = np.asarray(v['A'])
-        T = np.asarray(v['T_observed'])
-        betain = np.asarray(v['beta'])
-        alphain = np.asarray(v['alpha'])
-        ng = np.size(A)
-
-        # print("CHECK:", A, T, betain, alphain)
-
-        base = 2.0 * (6.626) ** (-2.0 - betain - alphain) * (1.38) ** (3. + betain + alphain) / (2.99792458) ** 2.0
-        expo = 34.0 * (2.0 + betain + alphain) - 23.0 * (3.0 + betain + alphain) - 16.0 + 26.0
-        K = base * 10.0 ** expo
-        w_num = 10 ** A * K * (T * (3.0 + betain + alphain)) ** (3.0 + betain + alphain)
-        w_den = (np.exp(3.0 + betain + alphain) - 1.0)
-        w_div = w_num / w_den
-        nu_cut = (3.0 + betain + alphain) * 0.208367e11 * T
-        graybody = np.reshape(10 ** A, (ng, 1)) * nu_in ** np.reshape(betain, (ng, 1)) * self.black(nu_in, T) / 1000.0
-        powerlaw = np.reshape(w_div, (ng, 1)) * nu_in ** np.reshape(-1.0 * alphain, (ng, 1))
-        graybody[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))] = \
-            powerlaw[np.where(nu_in >= np.reshape(nu_cut, (ng, 1)))]
-
-        return graybody
+        return self.graybody_fn(theta_in, wavelengths, alphain=alphain, betain=betain)
 
     def comoving_volume_given_area(self, area_deg2, zz1, zz2):
         vol0 = self.config_dict['cosmology_dict']['cosmology'].comoving_volume(zz2) - \

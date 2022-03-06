@@ -17,7 +17,6 @@ from scipy.optimize import curve_fit
 pi = 3.141592653589793
 L_sun = 3.839e26  # W
 c = 299792458.0  # m/s
-#conv_lir_to_sfr = 1.72e-10
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
 a_nu_flux_to_mass = 6.7e19
@@ -50,7 +49,7 @@ class SimstackCosmologyEstimators:
         _sed_params.add('beta', value=BETA_VALUE, vary=False)
         _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
 
-        y_model_d = self.fast_lmfit_sed(_sed_params, x_d)
+        y_model_d = self.fast_sed(_sed_params, x_d)
 
         # log likelihood for detections
         delta_y = y_d - y_model_d[0]
@@ -61,7 +60,7 @@ class SimstackCosmologyEstimators:
         # log likelihood for non-detections
         ll_nd = 0.
         if x_nd is not None:
-            y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
+            y_model_nd = self.fast_sed(_sed_params, x_nd)
             for j, dy_nd_j in enumerate(dy_nd):
                 _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd_j)))
                 _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.sqrt(dy_nd_j) * sigma_upper_limit, 100)])
@@ -86,7 +85,7 @@ class SimstackCosmologyEstimators:
         _sed_params.add('beta', value=BETA_VALUE, vary=False)
         _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
 
-        y_model_d = self.fast_lmfit_sed(_sed_params, x_d)
+        y_model_d = self.fast_sed(_sed_params, x_d)
 
         # log likelihood for detections
         delta_y = y_d - y_model_d[0]
@@ -97,11 +96,11 @@ class SimstackCosmologyEstimators:
         # log likelihood for non-detections
         ll_nd = 0.
         if x_nd is not None:
-            y_model_nd = self.fast_lmfit_sed(_sed_params, x_nd)
+            y_model_nd = self.fast_sed(_sed_params, x_nd)
             _integral_j = np.sqrt(np.pi / 2 * np.sqrt(dy_nd)) * (
                     special.erf((np.sqrt(dy_nd) * sigma_upper_limit - y_model_nd[0]) / np.sqrt(2 * dy_nd)) +
                     special.erf((y_model_nd[0]) / np.sqrt(2 * dy_nd)))
-            ll_nd = -0.5 * np.sum(np.log(_integral_j))
+            ll_nd = np.sum(np.log(_integral_j))
         else:
             pass
 
@@ -167,9 +166,6 @@ class SimstackCosmologyEstimators:
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
-
-    #def target_function(self, theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd):
-    #    return -self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd)
 
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 

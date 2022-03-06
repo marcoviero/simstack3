@@ -474,9 +474,6 @@ class SimstackPlots(SimstackToolbox):
                         yerr = mcmc_dict['yerr'][id_label]
                         sed_params = self.fast_sed_fitter(wvs, y, yerr)
                         sed_array = self.fast_sed(sed_params, wv_array)
-                        graybody = self.fast_sed(sed_params, wvs)[0]
-                        delta_y = y - graybody
-                        med_delta = np.median(y / delta_y)
 
                         flat_samples = mcmc_dict['mcmc_dict'][id_label]
                         mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
@@ -486,7 +483,6 @@ class SimstackPlots(SimstackToolbox):
                         mcmc_50 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
                         mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
 
-                        #colors = ['y', 'c', 'b', 'r', 'g']
                         if ip:
                             ix = im
                         else:
@@ -496,13 +492,9 @@ class SimstackPlots(SimstackToolbox):
                         if ix == 0:
                             axs[ix, iz].set_title(zlab)
 
-                        # pdb.set_trace()
                         LIR = self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_med[id_label])
-                        mcmc_label = "A={0:.1f}, T={1:.1f}, LIR={2:.1f}".format(mcmc_out[0][1],
-                                                                                mcmc_out[1][1] * (1 + z_med[id_label]),
-                                                                                LIR)
-                        #mcmc_label = "LIR={0:.1f}, T={1:.1f}".format(mcmc_out[0][1],
-                        #                                             mcmc_out[1][1] * (1 + z_med[id_label]))
+                        mcmc_label = "A={0:.1f}, T={1:.1f}".format(mcmc_out[0][1],
+                                                                   mcmc_out[1][1] * (1 + z_med[id_label]))
 
                         axs[ix, iz].plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=mcmc_label)
                         axs[ix, iz].fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
@@ -510,24 +502,17 @@ class SimstackPlots(SimstackToolbox):
 
                         axs[ix, iz].legend(loc='upper left', frameon=False)
 
-                        # Ain = np.max([1e-39, sed_params['A'].value])
                         Ain = sed_params['A'].value
-                        Aerr = sed_params['A'].stderr
                         Tin = sed_params['T_observed'].value
-                        Terr = sed_params['T_observed'].stderr
                         if Tin is None:
                             Tin = (10 ** (1.2 + 0.1 * z_med[id_label])) / (1 + z_med[id_label])
-                        if Terr is None:
-                            Terr = Tin * med_delta
                         if Ain is None:
-                            Ain = 39
-                        if Aerr is None:
-                            Aerr = Ain * med_delta
+                            Ain = -34
 
-                        prior_label = "A={0:.1f}+-{1:.1f}, T={2:.1f}+-{3:.1f}".format(Ain, Aerr, Tin, Terr)
+                        prior_label = "Ap={0:.1f}, Tp={1:.1f}".format(Ain, Tin * (1 + z_med[id_label]))
                         axs[ix, iz].text(9.0e0, 3e1, prior_label)
-
-                        axs[ix, iz].text(9.0e0, 7e0, "Ngals={0:.0f}".format(ngals[id_label]))
+                        axs[ix, iz].text(9.0e0, 8e0, "Ngals={0:.0f}".format(ngals[id_label]))
+                        axs[ix, iz].text(9.0e0, 2e0, "LIR={0:.1f}".format(np.log10(LIR)))
 
                         for iwv, wv in enumerate(wvs):
                             if wv in [24, 70]:
@@ -542,21 +527,14 @@ class SimstackPlots(SimstackToolbox):
                             if bootstrap_dict is not None:
                                 for iboot in range(len(bootstrap_dict['sed_bootstrap_fluxes_dict'][label])):
                                     yplot_boot = bootstrap_dict['sed_bootstrap_fluxes_dict'][label][iboot] * 1e3
-                                    # pdb.set_trace()
                                     axs[ix, iz].scatter(wvs, yplot_boot, color=color, alpha=0.1)
-
-                            #axs[ix, iz].scatter(wv, y[iwv] * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
-                            #axs[ix, iz].errorbar(wv, y[iwv] * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
-                            #                     fmt="." + color, capsize=0)
 
                             yerr_diag = np.sqrt(np.diag(yerr)[iwv])
                             if y[iwv] - yerr_diag < 0:
-                                #yplot = y[iwv] / yerr_diag * sigma_upper_limit
                                 yplot = yerr_diag * sigma_upper_limit
                                 axs[ix, iz].errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
                                              fmt="." + color, uplims=True)
                             else:
-                                uplims = False
                                 yplot = y[iwv]
                                 axs[ix, iz].scatter(wv, yplot * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
                                 axs[ix, iz].errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
@@ -565,7 +543,6 @@ class SimstackPlots(SimstackToolbox):
                         axs[ix, iz].set_xscale('log')
                         axs[ix, iz].set_yscale('log')
                         axs[ix, iz].set_ylim([1e-2, 5e2])
-                        # axs[ix, iz].set_title(id_label)
 
     def plot_seds(self, sed_results_dict):
         bin_keys = list(self.config_dict['parameter_names'].keys())
