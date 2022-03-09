@@ -143,7 +143,6 @@ class SimstackCosmologyEstimators:
         return -np.inf
 
     def log_probability(self, theta, x, y, yerr, theta0):
-        #lp = self.log_prior_informative(theta, theta0)
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
@@ -213,10 +212,10 @@ class SimstackCosmologyEstimators:
                 args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
         else:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, self.log_probability_informative,
-                args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
-                #nwalkers, ndim, self.log_probability_full,
-                #args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
+                #nwalkers, ndim, self.log_probability_informative,
+                #args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
+                nwalkers, ndim, self.log_probability_full,
+                args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
 
         sampler.run_mcmc(pos, mcmc_iterations, progress=True)
         flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
@@ -288,6 +287,8 @@ class SimstackCosmologyEstimators:
         else:
             Terr = np.min([np.max([Terr, 0.05 * Tin]), Tin])
 
+        Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
+        Terr = np.sqrt(Tin)
         theta0 = Ain, Tin, Aerr, Terr
 
         if np.isfinite(np.log(np.linalg.det(yerr))):
@@ -301,11 +302,12 @@ class SimstackCosmologyEstimators:
     def get_lir_from_mcmc_samples(self, mcmc_samples, percentiles=[16, 25, 32, 50, 68, 75, 84], min_detections=1):
         lir_dict = {}
         tobs_dict = {}
+        mcmc_dict = {}
         bin_keys = list(self.config_dict['parameter_names'].keys())
 
         return_dict = {'lir_dict': lir_dict, 'Tobs_dict': tobs_dict, 'percentiles': percentiles,
                        'z_median': mcmc_samples['z_median'], 'm_median': mcmc_samples['m_median'],
-                       'ngals': mcmc_samples['ngals']}
+                       'ngals': mcmc_samples['ngals'], 'mcmc_out': mcmc_dict}
 
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
@@ -316,7 +318,7 @@ class SimstackCosmologyEstimators:
                         if np.sum((mcmc_samples['y'][id_label] - np.sqrt(np.diag(mcmc_samples['yerr'][id_label]))) > 0) >= min_detections:
                             mcmc_out = [np.percentile(mcmc_samples['mcmc_dict'][id_label][:, i], percentiles) for i in
                                         range(mcmc_samples['mcmc_dict'][id_label].shape[1])]
-
+                            mcmc_dict[id_label] = mcmc_out
                             z_median = mcmc_samples['z_median'][id_label]
 
                             for i, vpercentile in enumerate(percentiles):
@@ -360,8 +362,8 @@ class SimstackCosmologyEstimators:
 
                     if id_label in lir_dict['lir_dict']:
                         lird_dict[id_label] = \
-                            self.estimate_lird(self, lir_dict['lir_dict'][id_label], ngals,
-                                          effective_map_area, zlo, zhi, completeness=comp)
+                            self.estimate_lird(lir_dict['lir_dict'][id_label], ngals,
+                                          effective_map_area, zlo, zhi)  # , completeness=comp)
         return results_dict
 
     def estimate_total_lird_array(self, lird_dict):

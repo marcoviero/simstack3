@@ -353,10 +353,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         vol = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi) * vol0
         return vol
 
-    def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
-        vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
-        return lir * 1e0 * ngals / vol.value / completeness
-
     # From Weaver 2022
     def estimate_mlim_70(self, zin):
         return -1.51 * 1e6 * (1 + zin) + 6.81 * 1e7 * (1 + zin) ** 2
