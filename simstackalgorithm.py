@@ -219,8 +219,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                     np.random.shuffle(real_x)
                                     np.random.shuffle(real_y)
                                 bt_split = 0.80
-                                #jk_split = np.random.uniform(0.3, 0.7)
-                                #print('jackknife split = ', jk_split)
                                 left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
                                                                                     test_size=bt_split,
                                                                                     random_state=int(bootstrap),
@@ -255,8 +253,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             np.random.shuffle(real_x)
                             np.random.shuffle(real_y)
                         bt_split = 0.80
-                        #jk_split = np.random.uniform(0.3, 0.7)
-                        #print('jackknife split = ', jk_split)
                         left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
                                                                             random_state=int(bootstrap),
                                                                             shuffle=True)

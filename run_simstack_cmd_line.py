@@ -75,7 +75,8 @@ def main():
             init_boot = simstack_object.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
             print('Bootstrapping {} iterations starting at {}'.format(num_boots, init_boot))
 
-    # Shuffle x/y positions to check
+
+    # Shuffle x/y positions as Null test
     randomize = False
     if 'randomize' in simstack_object.config_dict['general']['error_estimator']:
         if simstack_object.config_dict['general']['error_estimator']['randomize']:
@@ -86,7 +87,7 @@ def main():
             boot_in = boot - 1 + init_boot
             simstack_object.perform_simstack(bootstrap=boot_in, randomize=randomize)
         else:
-            simstack_object.perform_simstack(bootstrap=boot, randomize=randomize)  # This happens in simstackalgorithm.py
+            simstack_object.perform_simstack(bootstrap=boot, randomize=randomize)  # This happens in simstackalgorithm
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)
