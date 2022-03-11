@@ -4,10 +4,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-import matplotlib.colors as mcolors
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
-sigma_upper_limit = 3
+sigma_upper_limit = 5
 
 class SimstackPlots(SimstackToolbox):
 
@@ -138,7 +137,7 @@ class SimstackPlots(SimstackToolbox):
             axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
         axs[1].legend(loc='lower left')
 
-    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True):
+    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True, ylim=[5, 9]):
 
         z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
         z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
@@ -161,7 +160,7 @@ class SimstackPlots(SimstackToolbox):
             plt.xlabel('redshift')
             plt.ylabel('IR Luminosity Density [Lsun Mpc3]')
             plt.xlim([0, z_bins[-1]])
-            plt.ylim([4.5, 9])
+            plt.ylim(ylim)
             plt.legend(loc='lower left', frameon=False)
 
         if plot_sfrd:
@@ -264,8 +263,9 @@ class SimstackPlots(SimstackToolbox):
                         if Aerr is None:
                             Aerr = Ain * med_delta
 
-                        # prior_label = "A={0:.1f}+-{1:.1f}, T={2:.1f}+-{3:.1f}".format(Ain, Aerr, Tin, Terr)
-                        prior_label = "Ap={0:.1f}, Tp={1:.1f}".format(Ain, Tin * (1 + z_med[id_label]))
+                        # prior_label = "Ap={0:.1f}+-{1:.1f}, Tp={2:.1f}+-{3:.1f}".format(Ain, Aerr, Tin, Terr)
+                        #prior_label = "Ap={0:.1f}, Tp={1:.1f}".format(Ain, Tin * (1 + z_med[id_label]))
+                        prior_label = "Ap={0:.1f}, Tp={1:.1f}+-{2:.1f}, Trf={3:.1f}".format(Ain, Tin, Terr, Tin * (1 + z_med[id_label]))
                         ax.text(9.0e0, 3e1, prior_label)
                         ax.text(9.0e0, 8e0, "Ngals={0:.0f}".format(ngals[id_label]))
                         ax.text(9.0e0, 2e0, "LIR={0:.1f}".format(np.log10(LIR)))
@@ -564,7 +564,8 @@ class SimstackPlots(SimstackToolbox):
         axs.errorbar(8.31, 80, 10, fmt="." + 'm', lolims=True, label='Bakx+ 2020')
         xmod = np.linspace(0, 9)
         axs.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero+ 2013')
-        axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber+ 2018')
+        #axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber+ 2018') # Eyeball estimate
+        axs.plot(xmod, 32.9 + 4.6 * (xmod - 2), label='Schrieber+ 2018') # Eqn 15
         axs.plot(xmod, xmod * ((63 - 27) / 9.25) + 27, label='Bouwens+ 2020')
 
         if xlog:

@@ -23,7 +23,7 @@ a_nu_flux_to_mass = 6.7e19
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
-sigma_upper_limit = 3
+sigma_upper_limit = 5
 
 class SimstackCosmologyEstimators:
 
@@ -31,15 +31,17 @@ class SimstackCosmologyEstimators:
         pass
 
     def log_likelihood(self, theta, x, y, cov):
+        '''Log-likelihood for full covariance matrix '''
         y_model = self.graybody_fn(theta, x)
         delta_y = y - y_model[0]
-        ll = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) + len(y) * np.log(2 * np.pi) + np.log(
-            np.linalg.det(cov)))
+        ll = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) +
+                     len(y) * np.log(2 * np.pi) +
+                     np.log(np.linalg.det(cov)))
         if not np.isfinite(ll):
             return -np.inf
         return ll
 
-    def log_likelihood_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_likelihood_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=5):
 
         BETA_VALUE = 1.8
         ALPHA_VALUE = 2.0
@@ -49,9 +51,8 @@ class SimstackCosmologyEstimators:
         _sed_params.add('beta', value=BETA_VALUE, vary=False)
         _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
 
-        y_model_d = self.fast_sed(_sed_params, x_d)
-
         # log likelihood for detections
+        y_model_d = self.fast_sed(_sed_params, x_d)
         delta_y = y_d - y_model_d[0]
         ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y))
                        + len(y_d) * np.log(2 * np.pi)
@@ -75,19 +76,17 @@ class SimstackCosmologyEstimators:
 
         return ll_d + ll_nd
 
-    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None,
+                            beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
 
-        BETA_VALUE = 1.8
-        ALPHA_VALUE = 2.0
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
         _sed_params.add('T_observed', value=theta[1], vary=True)
-        _sed_params.add('beta', value=BETA_VALUE, vary=False)
-        _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
-
-        y_model_d = self.fast_sed(_sed_params, x_d)
+        _sed_params.add('beta', value=beta_in, vary=False)
+        _sed_params.add('alpha', value=alpha_in, vary=False)
 
         # log likelihood for detections
+        y_model_d = self.fast_sed(_sed_params, x_d)
         delta_y = y_d - y_model_d[0]
         ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y))
                        + len(y_d) * np.log(2 * np.pi)
@@ -103,8 +102,6 @@ class SimstackCosmologyEstimators:
             ll_nd = np.sum(np.log(_integral_j))
         else:
             pass
-
-        # print('check ll_d and ll_nd:', ll_d, ll_nd)
 
         if not np.isfinite(ll_d + ll_nd):
             return -np.inf
@@ -154,17 +151,21 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return lp + self.log_likelihood_slow(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
 
-    def log_probability_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_probability_full(self, theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
+                             beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
-        return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
+        return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
+                                             beta_in, alpha_in, sigma_upper_limit)
 
-    def log_probability_informative(self, theta, theta0, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_probability_informative(self, theta, theta0, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
+                                    beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
         lp = self.log_prior_informative(theta, theta0)
         if not np.isfinite(lp):
             return -np.inf
-        return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
+        return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
+                                             beta_in, alpha_in, sigma_upper_limit)
 
     def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
@@ -179,7 +180,7 @@ class SimstackCosmologyEstimators:
         return flat_samples
 
     def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25,
-                               sigma_upper_limit=3, slow=False):
+                               beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3, slow=False, flat_prior=True):
 
         # Define non-detection as 1-sigma error below 0
         yerr_diag = np.diag(yerr)
@@ -207,22 +208,28 @@ class SimstackCosmologyEstimators:
         nwalkers, ndim = pos.shape
 
         if slow:
-            sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, self.log_probability_slow,
-                args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, self.log_probability_slow,
+                                            args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
+                                                  sigma_upper_limit))
         else:
-            sampler = emcee.EnsembleSampler(
-                #nwalkers, ndim, self.log_probability_informative,
-                #args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
-                nwalkers, ndim, self.log_probability_full,
-                args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd, sigma_upper_limit))
+            if flat_prior:
+                sampler = emcee.EnsembleSampler(
+                    nwalkers, ndim, self.log_probability_full,
+                    args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
+                          beta_in, alpha_in, sigma_upper_limit))
+            else:
+                sampler = emcee.EnsembleSampler(
+                    nwalkers, ndim, self.log_probability_informative,
+                    args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
+                          beta_in, alpha_in, sigma_upper_limit))
 
         sampler.run_mcmc(pos, mcmc_iterations, progress=True)
         flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
 
         return flat_samples
 
-    def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=5, slow=False, sigma_upper_limit=3):
+    def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=5,
+                                slow=False, flat_prior=True, sigma_upper_limit=5):
 
         id_distance = self.config_dict['catalog']['classification']['redshift']['id']
         id_secondary = self.config_dict['catalog']['classification']['stellar_mass']['id']
@@ -260,12 +267,13 @@ class SimstackCosmologyEstimators:
                                                                  z_median=z_median,
                                                                  mcmc_iterations=mcmc_iterations,
                                                                  mcmc_discard=mcmc_discard,
-                                                                 sigma_upper_limit=sigma_upper_limit, slow=slow)
+                                                                 sigma_upper_limit=sigma_upper_limit,
+                                                                 slow=slow, flat_prior=flat_prior)
 
         return return_dict
 
     def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0,
-                          mcmc_iterations=500, mcmc_discard=5, sigma_upper_limit=3, slow=False):
+                          mcmc_iterations=500, mcmc_discard=5, sigma_upper_limit=5, slow=False, flat_prior=True):
 
         if not z_median:
             z_label = id_label.split('_')[1:3]
@@ -281,19 +289,20 @@ class SimstackCosmologyEstimators:
         Tin = sed_params['T_observed'].value
         Terr = sed_params['T_observed'].stderr
         if Terr is None or Terr > Tin:
-            Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
+            Tin = (10 ** (1.4 + 0.08 * z_median)) / (1 + z_median)
             Terr = Tin
             Aerr = Ain
         else:
             Terr = np.min([np.max([Terr, 0.05 * Tin]), Tin])
 
-        Tin = (10 ** (1.2 + 0.1 * z_median)) / (1 + z_median)
-        Terr = np.sqrt(Tin)
+        #Tin = (10 ** (1.4 + 0.08 * z_median)) / (1 + z_median)
+        #Terr = np.sqrt(Tin)
         theta0 = Ain, Tin, Aerr, Terr
 
         if np.isfinite(np.log(np.linalg.det(yerr))):
             flat_samples = self.mcmc_sed_estimator_new(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
-                                              mcmc_discard=mcmc_discard, sigma_upper_limit=sigma_upper_limit, slow=slow)
+                                                       mcmc_discard=mcmc_discard, sigma_upper_limit=sigma_upper_limit,
+                                                       slow=slow, beta_in=1.8, alpha_in=2.0, flat_prior=flat_prior)
         else:
             return -np.inf
 
