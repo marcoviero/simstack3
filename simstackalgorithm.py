@@ -132,7 +132,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.stack_successful = True
 
     def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
-                   randomize=randomize, write_fits_layers=False):
+                   randomize=False, write_fits_layers=False):
 
         cmap = map_dict['map']
         cnoise = map_dict['noise']

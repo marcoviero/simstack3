@@ -111,8 +111,8 @@ class SimstackCosmologyEstimators:
     def log_prior(self, theta):
         A, T = theta
         Amin = -42
-        Amax = -28
-        Tmin = 1
+        Amax = -33
+        Tmin = 5
         Tmax = 32
 
         if Amin < A < Amax and Tmin < T < Tmax:
@@ -124,8 +124,8 @@ class SimstackCosmologyEstimators:
         A, T = theta
         A0, T0, sigma_A, sigma_T = theta0
         Amin = -42
-        Amax = -28
-        Tmin = 1
+        Amax = -33
+        Tmin = 5
         Tmax = 32
         error_infl = 1.0
 

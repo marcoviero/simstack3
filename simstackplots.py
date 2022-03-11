@@ -167,6 +167,20 @@ class SimstackPlots(SimstackToolbox):
             sfrd_total = total_lird_dict['sfrd_total']
             sfrd_error = total_lird_dict['sfrd_total_error']
             fig = plt.figure(figsize=(9, 6))
+
+            xbow = [1, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0]
+            ybow0 = [0.025, 0.057, 0.108, 0.142, 0.134, 0.077, 0.046, 0.0301, 0.023]
+            ybow1 = [0.0044, 0.029, 0.0717, 0.089, 0.08, 0.0362, 0.012, 0.005, 0.0023]
+            # plt.fill_between(xbow,np.log10(ybow0),np.log10(ybow1), facecolor='k', alpha=0.2, edgecolor='k', label='Bouwens+ 2020')
+
+            xzav = [0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+            yzav0 = [0.009, 0.029, 0.065, 0.118, 0.155, 0.133, 0.084, 0.059, 0.043, 0.033, 0.026, 0.02, 0.016, 0.014,
+                     0.012]
+            yzav1 = [0.0048, 0.0158, 0.0347, 0.0555, 0.069, 0.0584, 0.0388, 0.0226, 0.0136, 0.009, 0.005, 0.004, 0.0039,
+                     0.0032, 0.0026]
+            plt.fill_between(xzav, np.log10(yzav0), np.log10(yzav1), facecolor='r', alpha=0.1, edgecolor='r',
+                             label='Zavala+ 2022')
+
             bin_keys = list(self.config_dict['parameter_names'].keys())
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 label = "Star-Forming logM=" + '-'.join(mlab.split('_')[2:])
@@ -179,13 +193,23 @@ class SimstackPlots(SimstackToolbox):
 
             plt.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
                              np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c')
-            plt.plot(z_mid, np.log10(sfrd_total), '-', label='total', color='c')
+            plt.plot(z_mid, np.log10(sfrd_total), '-', label='All Galaxies', color='c')
+
+            xsides = [0, 0.5, 1, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 6.5, 7.0]
+            ysides = [0.009, 0.041, 0.067, 0.081, 0.0848, 0.0849, 0.0578, 0.0288, 0.0168, 0.0093, 0.0058]
+            plt.plot(xsides, np.log10(ysides), '-.', c='y', lw=2, label='[SIDES] Bethermin+ 2017')
+
+            xill = [0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+            yill = [0.0117, 0.0253, 0.0431, 0.0562, 0.0674, 0.0666, 0.0651, 0.0531, 0.0500, 0.0455, 0.0295, 0.0193,
+                    0.0156, 0.0114, 0.008]
+            plt.plot(xill, np.log10(yill), '--', c='g', lw=2, label='[IllustrisTNG] Pillepich+ 2018')
 
             plt.xlabel('redshift')
             plt.ylabel('SFR Density [Msun/yr Mpc3]')
-            plt.xlim([0, z_bins[-1]])
-            plt.ylim([-5, -1])
-            plt.legend(loc='lower left', frameon=False)
+            plt.xlim([0, z_bins[-1] - 0.5])
+            plt.ylim([-3.75, -0.75])
+            # plt.legend(loc='lower left', frameon=False)
+            plt.legend(bbox_to_anchor=(1, 1), loc="upper left")
 
     def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'), save_path=None):
         bin_keys = list(self.config_dict['parameter_names'].keys())
