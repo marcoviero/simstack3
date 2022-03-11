@@ -100,7 +100,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 if add_background:
                     labels.append("ones_background")
                 cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
-                                          crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+                                                       crop_circles=crop_circles, add_background=add_background,
+                                                       bootstrap=bootstrap, randomize=randomize)
                 for wv in cov_ss_out:
                     if wv not in self.results_dict['band_results_dict']:
                         self.results_dict['band_results_dict'][wv] = {}
@@ -119,7 +120,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if add_background:
                 labels.append("ones_background")
             cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
-                                      crop_circles=crop_circles, add_background=add_background, bootstrap=bootstrap)
+                                                   crop_circles=crop_circles, add_background=add_background,
+                                                   bootstrap=bootstrap, randomize=randomize)
 
             for wv in cov_ss_out:
                 if wv not in self.results_dict['band_results_dict']:
@@ -130,7 +132,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.stack_successful = True
 
     def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
-                   write_fits_layers=False):
+                   randomize=False, write_fits_layers=False):
 
         cmap = map_dict['map']
         cnoise = map_dict['noise']
@@ -198,6 +200,9 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             else:
                                 if sum(ind_src) > 0:
                                     real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                    if randomize:
+                                        np.random.shuffle(real_x)
+                                        np.random.shuffle(real_y)
                                     layers[ilayer, real_x, real_y] += 1.0
                                     trimmed_labels.append(labels[ilabel])
                                     ilayer += 1
@@ -209,9 +214,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                         if bootstrap:
                             if sum(ind_src) > 4:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                if randomize:
+                                    np.random.shuffle(real_x)
+                                    np.random.shuffle(real_y)
                                 bt_split = 0.80
-                                #jk_split = np.random.uniform(0.3, 0.7)
-                                #print('jackknife split = ', jk_split)
                                 left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
                                                                                     test_size=bt_split,
                                                                                     random_state=int(bootstrap),
@@ -228,6 +234,9 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                         else:
                             if sum(ind_src) > 0:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                if randomize:
+                                    np.random.shuffle(real_x)
+                                    np.random.shuffle(real_y)
                                 layers[ilayer, real_x, real_y] += 1.0
                                 trimmed_labels.append(labels[ilabel])
                                 ilayer += 1
@@ -239,9 +248,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 if bootstrap:
                     if sum(ind_src) > 4:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                        if randomize:
+                            np.random.shuffle(real_x)
+                            np.random.shuffle(real_y)
                         bt_split = 0.80
-                        #jk_split = np.random.uniform(0.3, 0.7)
-                        #print('jackknife split = ', jk_split)
                         left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
                                                                             random_state=int(bootstrap),
                                                                             shuffle=True)
@@ -257,6 +267,9 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 else:
                     if sum(ind_src) > 0:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                        if randomize:
+                            np.random.shuffle(real_x)
+                            np.random.shuffle(real_y)
                         layers[ilayer, real_x, real_y] += 1.0
                         trimmed_labels.append(labels[ilabel])
                         ilayer += 1
@@ -318,14 +331,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
     def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, crop_circles=False,
-                             add_background=False, bootstrap=False):
+                             add_background=False, bootstrap=False, randomize=False):
 
         map_keys = list(self.maps_dict.keys())
         cov_ss_dict = {}
         for wv in map_keys:
             map_dict = self.maps_dict[wv].copy()
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
-                                        add_background=add_background, bootstrap=bootstrap)
+                                        add_background=add_background, bootstrap=bootstrap, randomize=randomize)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
