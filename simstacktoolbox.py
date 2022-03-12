@@ -100,9 +100,12 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             if self.config_dict['general']['error_estimator']['randomize']:
                 shuffle_suffix = 'null'
 
-        longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
-                             at_once_suffix, catalog_suffix, bootstrap_suffix, shuffle_suffix])
-
+        if shuffle_suffix == '':
+            longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
+                                 at_once_suffix, catalog_suffix, bootstrap_suffix])
+        else:
+            longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
+                                 at_once_suffix, catalog_suffix, bootstrap_suffix, shuffle_suffix])
         pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname

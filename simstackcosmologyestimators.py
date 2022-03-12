@@ -77,7 +77,7 @@ class SimstackCosmologyEstimators:
         return ll_d + ll_nd
 
     def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None,
-                            beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+                            beta_in=1.8, alpha_in=2.0, sigma_upper_limit=5):
 
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
@@ -145,14 +145,14 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return lp + self.log_likelihood(theta, x, y, yerr)
 
-    def log_probability_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_probability_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=5):
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood_slow(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
 
     def log_probability_full(self, theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
-                             beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+                             beta_in=1.8, alpha_in=2.0, sigma_upper_limit=5):
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
@@ -160,7 +160,7 @@ class SimstackCosmologyEstimators:
                                              beta_in, alpha_in, sigma_upper_limit)
 
     def log_probability_informative(self, theta, theta0, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
-                                    beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+                                    beta_in=1.8, alpha_in=2.0, sigma_upper_limit=5):
         lp = self.log_prior_informative(theta, theta0)
         if not np.isfinite(lp):
             return -np.inf
@@ -180,7 +180,7 @@ class SimstackCosmologyEstimators:
         return flat_samples
 
     def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25,
-                               beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3, slow=False, flat_prior=True):
+                               beta_in=1.8, alpha_in=2.0, sigma_upper_limit=5, slow=False, flat_prior=True):
 
         # Define non-detection as 1-sigma error below 0
         yerr_diag = np.diag(yerr)
