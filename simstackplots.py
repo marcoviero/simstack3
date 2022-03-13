@@ -606,7 +606,7 @@ class SimstackPlots(SimstackToolbox):
         axs.errorbar(7.15, 54, 10, c='c', markersize=8, marker='s', label='Hashimoto+ 2019')
         axs.errorbar(7.075, 47, 6, c='b', markersize=8, marker='s', label='Sommovigo+ 2022')
         axs.errorbar(8.31, 80, 10, fmt="." + 'm', lolims=True, label='Bakx+ 2020')
-        axs.errorbar(8.4, 91, 23, fmt="." + 'y', lolims=True, label='Behrens+ 2018')
+        axs.errorbar(8.4, 91, 23, fmt="." + 'y', lolims=True, label='Laport+ 2017, Behrens+ 2018')
         xmod = np.linspace(0, 9)
         axs.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero+ 2013')
         #axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber+ 2018') # Eyeball estimate
