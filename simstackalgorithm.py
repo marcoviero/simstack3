@@ -35,7 +35,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
     def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, write_simmaps=False,
-                         bootstrap=0, randomize=False):
+                         bootstrap=0, force_fwhm=None, randomize=False):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -102,7 +102,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     labels.append("ones_background")
                 cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
                                                        crop_circles=crop_circles, add_background=add_background,
-                                                       bootstrap=bootstrap, randomize=randomize)
+                                                       bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize)
                 for wv in cov_ss_out:
                     if wv not in self.results_dict['band_results_dict']:
                         self.results_dict['band_results_dict'][wv] = {}
@@ -122,7 +122,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 labels.append("ones_background")
             cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
                                                    crop_circles=crop_circles, add_background=add_background,
-                                                   bootstrap=bootstrap, randomize=randomize)
+                                                   bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize)
 
             for wv in cov_ss_out:
                 if wv not in self.results_dict['band_results_dict']:
@@ -133,7 +133,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.stack_successful = True
 
     def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
-                   randomize=False, write_fits_layers=False):
+                   force_fwhm=None, randomize=False, write_fits_layers=False):
 
         cmap = map_dict['map']
         cnoise = map_dict['noise']
@@ -300,7 +300,18 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             cfits_maps = np.zeros([nlayers + 2, nhits])  # +2 to append cmap and cnoise
 
-        kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
+        # If smoothing maps to all have same FWHM
+        if force_fwhm:
+            if force_fwhm > fwhm:
+                fwhm_eff = np.sqrt(force_fwhm**2 - fwhm**2)
+                kern_eff = self.gauss_kern(fwhm, np.floor(fwhm_eff * 10) / pix, pix)
+                cmap = self.smooth_psf(cmap, kern_eff)
+                kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
+            else:
+                kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
+        else:
+            kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
+
         for umap in range(nlayers):
             layer = layers[umap, :, :]
             tmap = self.smooth_psf(layer, kern)
@@ -331,7 +342,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
-    def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, crop_circles=False,
+    def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, force_fwhm=None, crop_circles=False,
                              add_background=False, bootstrap=False, randomize=False):
 
         map_keys = list(self.maps_dict.keys())
@@ -339,7 +350,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         for wv in map_keys:
             map_dict = self.maps_dict[wv].copy()
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
-                                        add_background=add_background, bootstrap=bootstrap, randomize=randomize)
+                                        add_background=add_background, bootstrap=bootstrap, randomize=randomize,
+                                        force_fwhm=force_fwhm)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
