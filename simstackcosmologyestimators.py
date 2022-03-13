@@ -284,6 +284,8 @@ class SimstackCosmologyEstimators:
         yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
 
         sed_params = self.fast_sed_fitter(x, y, yerr)
+        t_forced = 32.9 + 4.6 * (z_median - 2)
+        sed_forced_params = self.forced_sed_fitter(x, y, yerr, t_forced)
         Ain = sed_params['A'].value
         Aerr = sed_params['A'].stderr
         Tin = sed_params['T_observed'].value

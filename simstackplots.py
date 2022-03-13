@@ -18,7 +18,8 @@ class SimstackPlots(SimstackToolbox):
             if '__' not in i:
                 setattr(self, i, getattr(SimstackPlotsObject, i))
 
-    def plot_cib(self, cib_dict=None, tables=None, area_deg2=None, zbins=[0, 1, 2, 3, 4, 6, 9]):
+    def plot_cib(self, cib_dict=None, tables=None, area_deg2=None, zbins=[0, 1, 2, 3, 4, 6, 9],
+                 save_path=None, save_filename="CIB.pdf"):
 
         if not cib_dict:
             if 'cib_dict' not in self.results_dict:
@@ -73,7 +74,11 @@ class SimstackPlots(SimstackToolbox):
         axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', lw=3)
         axs[1].legend(loc='lower left')
 
-    def plot_cib_layers(self, cib_dict=None, tables=None, area_deg2=None, show_total=False, zbins=[0, 1, 2, 3, 4, 6, 9]):
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
+    def plot_cib_layers(self, cib_dict=None, tables=None, area_deg2=None, show_total=False,
+                        zbins=[0, 1, 2, 3, 4, 6, 9], save_path=None, save_filename="CIB_layers.pdf"):
 
         if not cib_dict:
             if 'cib_dict' not in self.results_dict:
@@ -137,7 +142,11 @@ class SimstackPlots(SimstackToolbox):
             axs[1].plot(wvs, np.sum(np.sum(nuInu[:, :, :, ip], axis=1), axis=1), ls[ip], label='Total', color='y', lw=4, alpha=0.4)
         axs[1].legend(loc='lower left')
 
-    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True, ylim=[5, 9]):
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
+    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True, ylim=[5, 9],
+                        save_path=None, save_filename="Tdust.pdf"):
 
         z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
         z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
@@ -211,7 +220,11 @@ class SimstackPlots(SimstackToolbox):
             # plt.legend(loc='lower left', frameon=False)
             plt.legend(bbox_to_anchor=(1, 1), loc="upper left")
 
-    def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'), save_path=None):
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
+    def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'),
+                       save_path=None, save_filename="SEDs.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         wvs = mcmc_dict['wavelengths']
         wv_array = self.loggen(8, 1000, 100)
@@ -248,6 +261,11 @@ class SimstackPlots(SimstackToolbox):
                         delta_y = y - graybody
                         med_delta = np.median(y / delta_y)
 
+                        # Compare Schrieber 2018 fit
+                        t_forced = (32.9 + 4.6 * (z_med[id_label] - 2)) / (1 + z_med[id_label])
+                        sed_forced_params = self.forced_sed_fitter(wvs, y, yerr, t_forced)
+                        sed_forced_array = self.fast_sed(sed_forced_params, wv_array)
+
                         flat_samples = mcmc_dict['mcmc_dict'][id_label]
                         mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
                                     for i in range(np.shape(flat_samples)[1])]
@@ -257,6 +275,7 @@ class SimstackPlots(SimstackToolbox):
                         mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
 
                         ax.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
+                        ax.plot(wv_array, sed_forced_array[0] * 1e3, color='r', lw=0.5)
 
                         # pdb.set_trace()
                         LIR = self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_med[id_label])
@@ -347,8 +366,9 @@ class SimstackPlots(SimstackToolbox):
         fig.text(0.5, 0.02, 'Observed Wavelength [micron]', ha='center')
         # fig.text(0.15, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
         fig.text(0.14, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
+
         if save_path is not None:
-            plt.savefig(os.path.join(save_path, "SEDs.pdf"), format="pdf", bbox_inches="tight")
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
     def plot_seds(self, sed_results_dict):
         bin_keys = list(self.config_dict['parameter_names'].keys())
@@ -540,7 +560,7 @@ class SimstackPlots(SimstackToolbox):
             print("Skipping SED plotting because only single wavelength measured.")
 
     def plot_rest_frame_temperature(self, lir_in, xlim=None, ylim=[1, 100], xlog=False, ylog=True, fit_p=[1.35, 0.09],
-                                    show_prior=False):
+                                    show_prior=False, save_path=None, save_filename="Tdust.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
@@ -586,6 +606,7 @@ class SimstackPlots(SimstackToolbox):
         axs.errorbar(7.15, 54, 10, c='c', markersize=8, marker='s', label='Hashimoto+ 2019')
         axs.errorbar(7.075, 47, 6, c='b', markersize=8, marker='s', label='Sommovigo+ 2022')
         axs.errorbar(8.31, 80, 10, fmt="." + 'm', lolims=True, label='Bakx+ 2020')
+        axs.errorbar(8.4, 91, 23, fmt="." + 'y', lolims=True, label='Behrens+ 2018')
         xmod = np.linspace(0, 9)
         axs.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero+ 2013')
         #axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber+ 2018') # Eyeball estimate
@@ -604,8 +625,11 @@ class SimstackPlots(SimstackToolbox):
         axs.set_xlabel('Redshift')
         axs.set_ylabel('Restframe Temperature [K]')
         axs.legend(loc='upper left')
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
-    def plot_star_forming_main_sequence(self, lir_in, ylim=[1e-1, 1e4], xlog=False, ylog=True):
+    def plot_star_forming_main_sequence(self, lir_in, ylim=[1e-1, 1e4], xlog=False, ylog=True,
+                                        save_path=None, save_filename="Tdust.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
         sfr = np.zeros(ds)
@@ -630,3 +654,5 @@ class SimstackPlots(SimstackToolbox):
         axs.set_xlabel('Stellar Mass [Mstar]')
         axs.set_ylabel('SFR [Mstar/yr]')
         axs.legend(loc='lower right')
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")

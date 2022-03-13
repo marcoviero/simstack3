@@ -317,6 +317,31 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return return_dict
 
+    def get_forced_sed_dict(self, sed_bootstrap_dict):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        x = sed_bootstrap_dict['wavelengths']
+
+        wv_array = self.loggen(8, 1000, 100)
+        sed_params_dict = {}
+        graybody_dict = {}
+        lir_dict = {}
+        return_dict = {'wv_array': wv_array, 'sed_params': sed_params_dict, 'graybody': graybody_dict, 'lir': lir_dict}
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
+                    yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+                    zin = sed_bootstrap_dict['z_median'][id_label]
+                    tin = 32.9 + 4.6 * (zin - 2)
+                    sed_params_dict[id_label] = self.forced_sed_fitter(x, y, yerr, tin)
+                    graybody_dict[id_label] = self.fast_sed(sed_params_dict[id_label], wv_array)[0]
+                    theta = sed_params_dict[id_label]['A'].value, sed_params_dict[id_label]['T_observed'].value
+                    lir_dict[id_label] = self.fast_LIR(theta, zin)
+
+        return return_dict
+
     def lambda_to_ghz(self, lam):
         c_light = 299792458.0  # m/s
         return np.array([1e-9 * c_light / (i * 1e-6) for i in lam])
@@ -416,6 +441,25 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         except:
             #pdb.set_trace()
             #print('fucked!')
+            m = fit_params
+
+        return m
+
+    def forced_sed_fitter(self, wavelengths, fluxes, covar, t_in, betain=1.8, alphain=2.0):
+        a_in = -34.0
+        fit_params = Parameters()
+        fit_params.add('A', value=a_in, vary=True, max=-32, min=-35)
+        fit_params.add('T_observed', value=t_in, vary=False)
+        fit_params.add('beta', value=betain, vary=False)
+        fit_params.add('alpha', value=alphain, vary=False)
+
+        try:
+            sed_params = minimize(self.find_sed_min, fit_params,
+                                  args=(wavelengths,),
+                                  kws={'fluxes': fluxes, 'covar': covar})
+            m = sed_params.params
+        except:
+            print('NO FIT!')
             m = fit_params
 
         return m
