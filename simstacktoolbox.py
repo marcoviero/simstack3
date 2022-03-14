@@ -83,7 +83,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             stellar_mass_suffix = "_".join(['X', str(len(mass_bins)-1)])
         if 'add_background' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['add_background'] or self.config_dict['general']['binning']['add_foreground']:
-                foreground_suffix = 'foreground'
+                foreground_suffix = 'forgnd'
         if 'stack_all_z_at_once' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['stack_all_z_at_once']:
                 at_once_suffix = 'atonce'
