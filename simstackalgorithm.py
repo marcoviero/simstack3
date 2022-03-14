@@ -304,10 +304,13 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         if force_fwhm:
             if force_fwhm > fwhm:
                 fwhm_eff = np.sqrt(force_fwhm**2 - fwhm**2)
-                kern_eff = self.gauss_kern(fwhm, np.floor(fwhm_eff * 10) / pix, pix)
+                print("convolving {0:0.1f} map with {1:0.1f} arcsec psf".format(fwhm, fwhm_eff))
+                kern_eff = self.gauss_kern(fwhm_eff, np.floor(fwhm_eff * 10) / pix, pix)
                 cmap = self.smooth_psf(cmap, kern_eff)
-                kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
+                #cnoise = self.smooth_psf(cnoise, kern_eff)  # what to do with noise?
+                kern = self.gauss_kern(force_fwhm, np.floor(force_fwhm * 10) / pix, pix)
             else:
+                print("not convolving {0:0.1f} map ".format(fwhm))
                 kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
         else:
             kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
