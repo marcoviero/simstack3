@@ -306,6 +306,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 fwhm_eff = np.sqrt(force_fwhm**2 - fwhm**2)
                 print("convolving {0:0.1f} map with {1:0.1f} arcsec psf".format(fwhm, fwhm_eff))
                 kern_eff = self.gauss_kern(fwhm_eff, np.floor(fwhm_eff * 10) / pix, pix)
+                kern_eff = kern_eff / np.sum(kern_eff) * (force_fwhm / fwhm_eff) ** 2.  # Adopted from IDL code.
                 cmap = self.smooth_psf(cmap, kern_eff)
                 #cnoise = self.smooth_psf(cnoise, kern_eff)  # what to do with noise?
                 kern = self.gauss_kern(force_fwhm, np.floor(force_fwhm * 10) / pix, pix)
