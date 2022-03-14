@@ -315,6 +315,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
 
+        #pdb.set_trace()
         for umap in range(nlayers):
             layer = layers[umap, :, :]
             tmap = self.smooth_psf(layer, kern)
