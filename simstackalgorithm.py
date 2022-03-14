@@ -135,8 +135,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
     def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
                    force_fwhm=None, randomize=False, write_fits_layers=False):
 
-        cmap = map_dict['map']
-        cnoise = map_dict['noise']
+        cmap = map_dict['map'].copy()
+        cnoise = map_dict['noise'].copy()
         pix = map_dict['pixel_size']
         hd = map_dict['header']
         fwhm = map_dict['fwhm']

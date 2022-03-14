@@ -81,7 +81,7 @@ def main():
         if simstack_object.config_dict['general']['error_estimator']['randomize']:
             randomize = True
 
-    # Shuffle x/y positions as Null test
+    # Convolve maps to have same psf
     force_fwhm = False
     if 'force_fwhm' in simstack_object.config_dict['general']['binning']:
         if simstack_object.config_dict['general']['binning']['force_fwhm']:
