@@ -88,12 +88,12 @@ class SimstackResults(SimstackToolbox):
 								# CHECK THAT LABEL EXISTS FIRST
 								if label in results_object:
 									# print(label, ' exists')
-									flux_array[iboot, z, i, j] = results_object[label].value
+									#flux_array[iboot, z, i, j] = results_object[label].value
 									if label+'__bootstrap2' in results_object:
 										outlier_array[iboot, z, i, j] = results_object[label+'__bootstrap2'].value
-									#	flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
-									#else:
-									#	flux_array[iboot, z, i, j] = results_object[label].value
+										flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+									else:
+										flux_array[iboot, z, i, j] = results_object[label].value
 
 									if len_results_dict_keys == 1:
 										error_array[z, i, j] = results_object[label].stderr
@@ -101,12 +101,12 @@ class SimstackResults(SimstackToolbox):
 							label = "__".join([zval, ival]).replace('.', 'p')
 							if label in results_object:
 								# print(label, ' exists')
-								flux_array[iboot, z, i] = results_object[label].value
+								#flux_array[iboot, z, i] = results_object[label].value
 								if label + '__bootstrap2' in results_object:
 									outlier_array[iboot, z, i] = results_object[label + '__bootstrap2'].value
-								#	flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
-								#else:
-								#	flux_array[iboot, z, i] = results_object[label].value
+									flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
+								else:
+									flux_array[iboot, z, i] = results_object[label].value
 
 								if len_results_dict_keys == 1:
 									error_array[z, i] = results_object[label].stderr
