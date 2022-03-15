@@ -91,7 +91,10 @@ class SimstackResults(SimstackToolbox):
 									#flux_array[iboot, z, i, j] = results_object[label].value
 									if label+'__bootstrap2' in results_object:
 										outlier_array[iboot, z, i, j] = results_object[label].value
-										flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+										#flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+										flux_array[iboot, z, i, j] = np.sqrt(
+											0.8 * results_object[label + '__bootstrap2'].value**2 +
+											0.2 * results_object[label].value ** 2)
 										#print(label)
 									else:
 										flux_array[iboot, z, i, j] = results_object[label].value
@@ -105,7 +108,10 @@ class SimstackResults(SimstackToolbox):
 								#flux_array[iboot, z, i] = results_object[label].value
 								if label + '__bootstrap2' in results_object:
 									outlier_array[iboot, z, i] = results_object[label].value
-									flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
+									#flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
+									flux_array[iboot, z, i] = np.sqrt(
+										0.8 * results_object[label + '__bootstrap2'].value ** 2 +
+										0.2 * results_object[label].value ** 2)
 								else:
 									flux_array[iboot, z, i] = results_object[label].value
 
@@ -298,10 +304,13 @@ class SimstackResults(SimstackToolbox):
 											flux_dict[id_label][iwv] = \
 											self.results_dict['band_results_dict'][band_label][flux_label][label]
 								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
-									boot_dict[id_label][iboot, iwv] = \
-										self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
+									#boot_dict[id_label][iboot, iwv] = \
+									#	self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
+									boot_dict[id_label][iboot, iwv] = np.sqrt(
+										0.8 * self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']**2 +
+										0.2 * self.results_dict['band_results_dict'][band_label][boot_label][label] ** 2)
 
-					error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
+									error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
 
 		return results_dict
 
