@@ -191,6 +191,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                                                                         shuffle=True)
                                     layers[ilayer, left_x, left_y] += 1.0
                                     layers[ilayer + 1, right_x, right_y] += 1.0
+                                    #layers[ilayer, right_x, right_y] += 1.0
+                                    #layers[ilayer + 1, left_x, left_y] += 1.0
                                     trimmed_labels.append(labels[ilabel])
                                     trimmed_labels.append(labels[ilabel + 1])
                                     ilayer += 2
@@ -225,6 +227,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                                                                     shuffle=True)
                                 layers[ilayer, left_x, left_y] += 1.0
                                 layers[ilayer + 1, right_x, right_y] += 1.0
+                                #layers[ilayer, right_x, right_y] += 1.0  #Change to these for final stack
+                                #layers[ilayer + 1, left_x, left_y] += 1.0
                                 trimmed_labels.append(labels[ilabel])
                                 trimmed_labels.append(labels[ilabel+1])
                                 ilayer += 2
@@ -258,6 +262,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                                                             shuffle=True)
                         layers[ilayer, left_x, left_y] += 1.0
                         layers[ilayer + 1, right_x, right_y] += 1.0
+                        #layers[ilayer, right_x, right_y] += 1.0
+                        #layers[ilayer + 1, left_x, left_y] += 1.0
                         trimmed_labels.append(labels[ilabel])
                         trimmed_labels.append(labels[ilabel + 1])
                         ilayer += 2
