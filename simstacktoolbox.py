@@ -87,10 +87,10 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'stack_all_z_at_once' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['stack_all_z_at_once']:
                 at_once_suffix = 'atonce'
-        if 'farmer' in self.config_dict['catalog']['file'].lower():
-            catalog_suffix = 'farmer'
-        elif 'classic' in self.config_dict['catalog']['file'].lower():
-            catalog_suffix = 'classic'
+        #if 'farmer' in self.config_dict['catalog']['file'].lower():
+        #    catalog_suffix = 'farmer'
+        #elif 'classic' in self.config_dict['catalog']['file'].lower():
+        #    catalog_suffix = 'classic'
         if 'bootstrap' in self.config_dict['general']['error_estimator']:
             if self.config_dict['general']['error_estimator']['bootstrap']['iterations']:
                 first_boot = self.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
@@ -102,10 +102,10 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         if shuffle_suffix == '':
             longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
-                                 at_once_suffix, catalog_suffix, bootstrap_suffix])
+                                 at_once_suffix, bootstrap_suffix])
         else:
             longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
-                                 at_once_suffix, catalog_suffix, bootstrap_suffix, shuffle_suffix])
+                                 at_once_suffix, bootstrap_suffix, shuffle_suffix])
         pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname

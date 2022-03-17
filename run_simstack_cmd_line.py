@@ -75,19 +75,24 @@ def main():
             init_boot = simstack_object.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
             print('Bootstrapping {} iterations starting at {}'.format(num_boots, init_boot))
 
-
     # Shuffle x/y positions as Null test
     randomize = False
     if 'randomize' in simstack_object.config_dict['general']['error_estimator']:
         if simstack_object.config_dict['general']['error_estimator']['randomize']:
             randomize = True
 
+    # Convolve maps to have same psf
+    force_fwhm = False
+    if 'force_fwhm' in simstack_object.config_dict['general']['binning']:
+        if simstack_object.config_dict['general']['binning']['force_fwhm']:
+            force_fwhm = simstack_object.config_dict['general']['binning']['force_fwhm']
+
     for boot in range(num_boots + 1):
         if boot:
             boot_in = boot - 1 + init_boot
-            simstack_object.perform_simstack(bootstrap=boot_in, randomize=randomize)
+            simstack_object.perform_simstack(bootstrap=boot_in, randomize=randomize, force_fwhm=force_fwhm)
         else:
-            simstack_object.perform_simstack(bootstrap=boot, randomize=randomize)  # This happens in simstackalgorithm
+            simstack_object.perform_simstack(bootstrap=boot, randomize=randomize, force_fwhm=force_fwhm)
 
     # Save Results
     saved_pickle_path = simstack_object.save_stacked_fluxes(param_file_path)
