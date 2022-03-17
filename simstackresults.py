@@ -63,6 +63,7 @@ class SimstackResults(SimstackToolbox):
 
 			len_results_dict_keys = np.sum(['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
 			flux_array = np.zeros([len_results_dict_keys, *ds])
+			outlier_array = np.zeros([len_results_dict_keys, *ds])
 			error_array = np.zeros(ds)
 
 			for iboot in np.arange(len_results_dict_keys):
@@ -72,12 +73,13 @@ class SimstackResults(SimstackToolbox):
 					boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
 
 				results_object = self.results_dict['band_results_dict'][key][boot_label]
+				#pdb.set_trace()
 
 				for z, zval in enumerate(self.config_dict['catalog']['distance_labels']):
-					if 'all_redshifts' in results_object:
-						zlab = 'all_redshifts'
-					else:
-						zlab = zval
+					#if 'all_redshifts' in results_object:
+					#	zlab = 'all_redshifts'
+					#else:
+					#	zlab = zval
 					for i, ival in enumerate(label_dict[label_keys[1]]):
 						if len(label_keys) > 2:
 							for j, jval in enumerate(label_dict[label_keys[2]]):
@@ -86,14 +88,34 @@ class SimstackResults(SimstackToolbox):
 								# CHECK THAT LABEL EXISTS FIRST
 								if label in results_object:
 									# print(label, ' exists')
-									flux_array[iboot, z, i, j] = results_object[label].value
+									#flux_array[iboot, z, i, j] = results_object[label].value
+									if label+'__bootstrap2' in results_object:
+										outlier_array[iboot, z, i, j] = results_object[label].value
+										#flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+										flux_array[iboot, z, i, j] = np.sqrt(
+											0.5 * results_object[label + '__bootstrap2'].value**2 +
+											0.5 * results_object[label].value ** 2)
+										#print(label)
+										#pdb.set_trace()
+									else:
+										flux_array[iboot, z, i, j] = results_object[label].value
+
 									if len_results_dict_keys == 1:
 										error_array[z, i, j] = results_object[label].stderr
 						else:
 							label = "__".join([zval, ival]).replace('.', 'p')
 							if label in results_object:
 								# print(label, ' exists')
-								flux_array[iboot, z, i] = results_object[label].value
+								#flux_array[iboot, z, i] = results_object[label].value
+								if label + '__bootstrap2' in results_object:
+									outlier_array[iboot, z, i] = results_object[label].value
+									#flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
+									flux_array[iboot, z, i] = np.sqrt(
+										0.5 * results_object[label + '__bootstrap2'].value ** 2 +
+										0.5 * results_object[label].value ** 2)
+								else:
+									flux_array[iboot, z, i] = results_object[label].value
+
 								if len_results_dict_keys == 1:
 									error_array[z, i] = results_object[label].stderr
 
@@ -271,6 +293,7 @@ class SimstackResults(SimstackToolbox):
 						for iboot in range(boots):
 							flux_label = 'stacked_flux_densities'
 							boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
+							#print(label+'__bootstrap2')
 							if len(self.config_dict['parameter_names']) > 2:
 								if not iboot:
 									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
@@ -282,10 +305,13 @@ class SimstackResults(SimstackToolbox):
 											flux_dict[id_label][iwv] = \
 											self.results_dict['band_results_dict'][band_label][flux_label][label]
 								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
-									boot_dict[id_label][iboot, iwv] = \
-										self.results_dict['band_results_dict'][band_label][boot_label][label]
+									#boot_dict[id_label][iboot, iwv] = \
+									#	self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
+									boot_dict[id_label][iboot, iwv] = np.sqrt(
+										0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']**2 +
+										0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label] ** 2)
 
-					error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
+									error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
 
 		return results_dict
 
@@ -304,7 +330,8 @@ class SimstackResults(SimstackToolbox):
 			for iboot in range(boots):
 				flux_label = 'stacked_flux_densities'
 				boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
-				# print(boot_label)
+				#print(boot_label)
+				#pdb.set_trace()
 				for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
 					for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 						if len(self.config_dict['parameter_names']) > 2:

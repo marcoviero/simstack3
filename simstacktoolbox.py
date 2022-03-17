@@ -426,7 +426,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         a_in = -34.0
         fit_params = Parameters()
         fit_params.add('A', value=a_in, vary=True)
-        fit_params.add('T_observed', value=t_in, max=t_in*1.3, vary=True)
+        #fit_params.add('T_observed', value=t_in, max=t_in*1.3, vary=True)
+        fit_params.add('T_observed', value=t_in, vary=True)
         fit_params.add('beta', value=betain, vary=False)
         fit_params.add('alpha', value=2.0, vary=False)
 
