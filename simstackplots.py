@@ -233,6 +233,7 @@ class SimstackPlots(SimstackToolbox):
             self.config_dict['parameter_names'][bin_keys[2]])
         zlen = len(self.config_dict['parameter_names'][bin_keys[0]])
         z_med = mcmc_dict['z_median']
+        m_med = mcmc_dict['m_median']
 
         width_ratios = [i for i in np.ones(zlen)]
         gs = gridspec.GridSpec(plen, zlen, width_ratios=width_ratios,
@@ -263,8 +264,9 @@ class SimstackPlots(SimstackToolbox):
 
                         # Compare Schrieber 2018 fit
                         t_forced = (32.9 + 4.6 * (z_med[id_label] - 2)) / (1 + z_med[id_label])
-                        sed_forced_params = self.forced_sed_fitter(wvs, y, yerr, t_forced)
-                        sed_forced_array = self.fast_sed(sed_forced_params, wv_array)
+                        a_forced = self.get_A_given_z_M_T(z_med[id_label], m_med[id_label], (32.9 + 4.6 * (z_med[id_label] - 2)))
+                        #sed_forced_params = self.forced_sed_fitter(wvs, y, yerr, t_forced)
+                        sed_forced_array = self.graybody_fn((a_forced, t_forced), wv_array)
 
                         flat_samples = mcmc_dict['mcmc_dict'][id_label]
                         mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
@@ -274,8 +276,9 @@ class SimstackPlots(SimstackToolbox):
                         mcmc_50 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
                         mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
 
-                        ax.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
-                        ax.plot(wv_array, sed_forced_array[0] * 1e3, color='r', lw=0.5)
+                        #ax.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
+                        if ip:
+                            ax.plot(wv_array, sed_forced_array[0] * 1e3, 'm:', lw=0.5)
 
                         # pdb.set_trace()
                         LIR = self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_med[id_label])

@@ -731,6 +731,29 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return rsch1 + rsch2
 
+    def get_A_given_z_M_T(self, z, M, Tobs):
+        LIR = np.log10(self.sf_main_sequence(z, M) / conv_lir_to_sfr)
+        A = np.linspace(-32.5, -36)
+        Ldiff = 1e3
+        for ai in A:
+            Ltemp = np.log10(self.fast_LIR((ai, Tobs / (1 + z)), z))
+            if (Ltemp - LIR) ** 2 < Ldiff:
+                Ldiff = (Ltemp - LIR) ** 2
+                Aout = ai
+        return Aout
+
+    def sf_main_sequence(self, z, M):
+        ''' From Bethermin 2017, adopted from Schreiber 2015'''
+        a0 = 1.5
+        a1 = 0.3
+        m0 = 0.5
+        m1 = 0.36
+        a2 = 2.5
+        sfr = 10 ** (np.log10(M ** 10 / 1e9) - m0 + a0 * np.log10(1 + z) - a1 * (
+            np.max([0, np.log10(M ** 10 / 1e9) - m1 - a2 * np.log10(1 + z)])) ** 2)
+
+        return sfr
+
     def loggen(self, minval, maxval, npoints, linear=None):
         points = np.arange(npoints) / (npoints - 1)
         if (linear != None):
