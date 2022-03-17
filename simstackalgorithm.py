@@ -189,10 +189,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                                                                         test_size=bt_split,
                                                                                         random_state=int(bootstrap),
                                                                                         shuffle=True)
-                                    #layers[ilayer, left_x, left_y] += 1.0
-                                    #layers[ilayer + 1, right_x, right_y] += 1.0
-                                    layers[ilayer, right_x, right_y] += 1.0
-                                    layers[ilayer + 1, left_x, left_y] += 1.0
+                                    layers[ilayer, left_x, left_y] += 1.0
+                                    layers[ilayer + 1, right_x, right_y] += 1.0
+                                    #layers[ilayer, right_x, right_y] += 1.0
+                                    #layers[ilayer + 1, left_x, left_y] += 1.0
                                     trimmed_labels.append(labels[ilabel])
                                     trimmed_labels.append(labels[ilabel + 1])
                                     ilayer += 2
@@ -225,10 +225,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                                                                     test_size=bt_split,
                                                                                     random_state=int(bootstrap),
                                                                                     shuffle=True)
-                                #layers[ilayer, left_x, left_y] += 1.0
-                                #layers[ilayer + 1, right_x, right_y] += 1.0
-                                layers[ilayer, right_x, right_y] += 1.0
-                                layers[ilayer + 1, left_x, left_y] += 1.0
+                                layers[ilayer, left_x, left_y] += 1.0
+                                layers[ilayer + 1, right_x, right_y] += 1.0
+                                #layers[ilayer, right_x, right_y] += 1.0  #Change to these for final stack
+                                #layers[ilayer + 1, left_x, left_y] += 1.0
                                 trimmed_labels.append(labels[ilabel])
                                 trimmed_labels.append(labels[ilabel+1])
                                 ilayer += 2
@@ -260,10 +260,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                         left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
                                                                             random_state=int(bootstrap),
                                                                             shuffle=True)
-                        #layers[ilayer, left_x, left_y] += 1.0
-                        #layers[ilayer + 1, right_x, right_y] += 1.0
-                        layers[ilayer, right_x, right_y] += 1.0
-                        layers[ilayer + 1, left_x, left_y] += 1.0
+                        layers[ilayer, left_x, left_y] += 1.0
+                        layers[ilayer + 1, right_x, right_y] += 1.0
+                        #layers[ilayer, right_x, right_y] += 1.0
+                        #layers[ilayer + 1, left_x, left_y] += 1.0
                         trimmed_labels.append(labels[ilabel])
                         trimmed_labels.append(labels[ilabel + 1])
                         ilayer += 2
