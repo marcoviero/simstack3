@@ -20,6 +20,7 @@ c = 299792458.0  # m/s
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
 a_nu_flux_to_mass = 6.7e19
+#alpha_850 = a_nu_flux_to_mass
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
@@ -228,7 +229,7 @@ class SimstackCosmologyEstimators:
 
         return flat_samples
 
-    def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=5,
+    def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=50,
                                 slow=False, flat_prior=True, sigma_upper_limit=5):
 
         id_distance = self.config_dict['catalog']['classification']['redshift']['id']
@@ -263,12 +264,21 @@ class SimstackCosmologyEstimators:
                     m_dict[id_label] = m_median
                     ngals_dict[id_label] = np.sum(ind_gals)
 
+                    if type(flat_prior) is list:
+                        if id_label in flat_prior:
+                            flat_prior_in = False
+                            print(id_label, ' informative prior')
+                        else:
+                            flat_prior_in = True
+                    else:
+                        flat_prior_in = flat_prior
+
                     mcmc_dict[id_label] = self.estimate_mcmc_sed(sed_bootstrap_dict, id_label,
                                                                  z_median=z_median,
                                                                  mcmc_iterations=mcmc_iterations,
                                                                  mcmc_discard=mcmc_discard,
                                                                  sigma_upper_limit=sigma_upper_limit,
-                                                                 slow=slow, flat_prior=flat_prior)
+                                                                 slow=slow, flat_prior=flat_prior_in)
 
         return return_dict
 
@@ -284,21 +294,19 @@ class SimstackCosmologyEstimators:
         yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
 
         sed_params = self.fast_sed_fitter(x, y, yerr)
-        t_forced = 32.9 + 4.6 * (z_median - 2)
-        sed_forced_params = self.forced_sed_fitter(x, y, yerr, t_forced)
+        #t_forced = 32.9 + 4.6 * (z_median - 2)
+        #sed_forced_params = self.forced_sed_fitter(x, y, yerr, t_forced)
         Ain = sed_params['A'].value
         Aerr = sed_params['A'].stderr
         Tin = sed_params['T_observed'].value
         Terr = sed_params['T_observed'].stderr
         if Terr is None or Terr > Tin:
-            Tin = (10 ** (1.4 + 0.08 * z_median)) / (1 + z_median)
+            Tin = (10 ** (1.4 + 0.075 * z_median)) / (1 + z_median)
             Terr = Tin
             Aerr = Ain
         else:
             Terr = np.min([np.max([Terr, 0.05 * Tin]), Tin])
 
-        #Tin = (10 ** (1.4 + 0.08 * z_median)) / (1 + z_median)
-        #Terr = np.sqrt(Tin)
         theta0 = Ain, Tin, Aerr, Terr
 
         if np.isfinite(np.log(np.linalg.det(yerr))):
