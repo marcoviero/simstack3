@@ -18,7 +18,7 @@ c = 299792458.0  # m/s
 #conv_lir_to_sfr = 1.72e-10
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
-a_nu_flux_to_mass = 6.7e19
+a_nu_flux_to_mass = 6.7e19 # erg / s / Hz / Msun
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
@@ -497,6 +497,17 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             #covar_use = np.min(np.array([np.sqrt(covar), np.sqrt(np.sqrt(fluxes**2))]), axis=0)
             return (fluxes + 1 * np.sqrt(covar) * np.random.randn(len(covar))) - graybody
 
+    def fast_L850(self, flux850, zin):
+        '''This calls graybody_fn instead of fast_sed'''
+
+        conversion = 1 / (1 + zin) * 4.0 * np.pi * (
+                self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
+                    zin) * 3.08568025E22) ** 2.0
+
+        Lrf = flux850 * conversion.value * 1e-26 * 1e7  # erg / s / Hz
+
+        return Lrf[0]
+
     def fast_LIR(self, theta, zin):  # Tin,betain,alphain,z):
         '''This calls graybody_fn instead of fast_sed'''
         wavelength_range = self.loggen(8, 1000, 1000)
@@ -733,7 +744,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         return rsch1 + rsch2
 
     def get_A_given_z_M_T(self, z, M, Tobs):
-        LIR = np.log10(self.sf_main_sequence(z, M) / conv_lir_to_sfr)
+        LIR = np.log10(self.sf_main_sequence(z, 10**M) / conv_lir_to_sfr)
         A = np.linspace(-32.5, -36)
         Ldiff = 1e3
         for ai in A:
@@ -745,13 +756,14 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
     def sf_main_sequence(self, z, M):
         ''' From Bethermin 2017, adopted from Schreiber 2015'''
+
         a0 = 1.5
         a1 = 0.3
         m0 = 0.5
         m1 = 0.36
         a2 = 2.5
-        sfr = 10 ** (np.log10(M ** 10 / 1e9) - m0 + a0 * np.log10(1 + z) - a1 * (
-            np.max([0, np.log10(M ** 10 / 1e9) - m1 - a2 * np.log10(1 + z)])) ** 2)
+        sfr = 10 ** (np.log10(M / 1e9) - m0 + a0 * np.log10(1 + z) - a1 * (
+            np.max([0, np.log10(M / 1e9) - m1 - a2 * np.log10(1 + z)])) ** 2)
 
         return sfr
 

@@ -2,11 +2,19 @@ import pdb
 import os
 import numpy as np
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
-sigma_upper_limit = 5
+sigma_upper_limit = 3
+
+font = {'size': 11.5}
+matplotlib.rc('font', **font)
+#plt.rcParams.update({
+#  "text.usetex": True,
+#  "font.family": "Helvetica"
+#})
 
 class SimstackPlots(SimstackToolbox):
 
@@ -223,7 +231,219 @@ class SimstackPlots(SimstackToolbox):
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
+    font = {'size': 12.5}
+    matplotlib.rc('font', **font)
+    plt.rcParams['font.size'] = 12.5
+    conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
+
+    def plot_total_sfrd(self, total_sfrd_dict, plot_lird=True, ylim=[-3.75, -0.75],
+                        show_qt=False, save_path=None, save_filename="SFRD.pdf"):
+
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
+        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
+
+        sfrd_total = total_sfrd_dict['sfrd_total']
+        sfrd_error = total_sfrd_dict['sfrd_total_error']
+        fig = plt.figure(figsize=(9, 6))
+
+        xbow = [1, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0]
+        ybow0 = [0.025, 0.057, 0.108, 0.142, 0.134, 0.077, 0.046, 0.0301, 0.023]
+        ybow1 = [0.0044, 0.029, 0.0717, 0.089, 0.08, 0.0362, 0.012, 0.005, 0.0023]
+        # plt.fill_between(xbow,np.log10(ybow0),np.log10(ybow1), facecolor='k', alpha=0.2, edgecolor='k', label='Bouwens+ 2020')
+
+        # LIRD
+        if plot_lird:
+            lird_total = total_sfrd_dict['lird_total']
+            lird_error = total_sfrd_dict['lird_total_error']
+            plt.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in conv_lir_to_sfr * (lird_total - lird_error)]),
+                             np.log10(conv_lir_to_sfr * (lird_total + lird_error)), facecolor='k', alpha=0.2, edgecolor='k',
+                             label='This Work - L_SED SFR')
+            plt.plot(z_mid, np.log10(conv_lir_to_sfr * lird_total), '-', color='k', alpha=0.5)
+
+        # SFRD
+        for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+            label = "log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+            plt.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 1]), '-',
+                     label=label)
+        if show_qt:
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "Quiescent log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                plt.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 0]), '--',
+                         label=label)
+
+        plt.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
+                         np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c',
+                         label='This Work - L_850 SFR')
+        plt.plot(z_mid, np.log10(sfrd_total), '-', color='c')
+
+        # OTHERS
+        # Zavala
+        xzav = [0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+        yzav0 = [0.009, 0.029, 0.065, 0.118, 0.155, 0.133, 0.084, 0.059, 0.043, 0.033, 0.026, 0.02, 0.016, 0.014,
+                 0.012]
+        yzav1 = [0.0048, 0.0158, 0.0347, 0.0555, 0.069, 0.0584, 0.0388, 0.0226, 0.0136, 0.009, 0.005, 0.004, 0.0039,
+                 0.0032, 0.0026]
+        plt.fill_between(xzav, np.log10(yzav0), np.log10(yzav1), facecolor='r', alpha=0.1, edgecolor='r',
+                         label='Zavala+ 2022')
+
+        # Bethermin
+        xsides = [0, 0.5, 1, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 6.5, 7.0]
+        ysides = [0.009, 0.041, 0.067, 0.081, 0.0848, 0.0849, 0.0578, 0.0288, 0.0168, 0.0093, 0.0058]
+        plt.plot(xsides, np.log10(ysides), '-.', c='y', lw=2.5, label='[SIDES] Bethermin+ 2017')
+
+        # Pillepich
+        xill = [0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+        yill = [0.0117, 0.0253, 0.0431, 0.0562, 0.0674, 0.0666, 0.0651, 0.0531, 0.0500, 0.0455, 0.0295, 0.0193,
+                0.0156, 0.0114, 0.008]
+        plt.plot(xill, np.log10(yill), '--', c='g', lw=2.5, label='[IllustrisTNG] Pillepich+ 2018')
+
+        plt.xlabel('redshift')
+        plt.ylabel('SFR Density [Msun/yr Mpc3]')
+        #plt.ylabel('\rho_{SFR} [M_{\odot}/yr Mpc3]')
+        plt.xlim([0, z_bins[-1] - 0.5])
+        if ylim:
+            plt.ylim([-3.75, -0.75])
+        plt.legend(loc='lower left', frameon=True)
+        # plt.legend(bbox_to_anchor=(1, 1), loc="upper left")
+        # pdb.set_trace()
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
     def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'),
+                       show_qt=False, save_path=None, save_filename="SEDs.pdf"):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        wvs = mcmc_dict['wavelengths']
+        wv_array = self.loggen(8, 1000, 100)
+        ngals = mcmc_dict['ngals']
+        p2 = 1
+        if show_qt: p2 = 2
+        plen = len(self.config_dict['parameter_names'][bin_keys[1]] * p2)
+        zlen = len(self.config_dict['parameter_names'][bin_keys[0]])
+        z_med = mcmc_dict['z_median']
+        m_med = mcmc_dict['m_median']
+
+        width_ratios = [i for i in np.ones(zlen)]
+        gs = gridspec.GridSpec(plen, zlen, width_ratios=width_ratios,
+                               wspace=0.0, hspace=0.0, top=0.95, bottom=0.05, left=0.17, right=0.845)
+        fig = plt.figure(figsize=(34, 9 * p2))
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    if ip or show_qt:
+                        id_label = "__".join([zlab, mlab, plab])
+                        label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+
+                        if ip:
+                            ix = im
+                        else:
+                            ix = im + len(self.config_dict['parameter_names'][bin_keys[1]])
+                        ax = plt.subplot(gs[ix, iz])
+                        ax.set_yticklabels([])
+                        if type(mcmc_dict['mcmc_dict'][id_label]) is not float:
+
+                            y = mcmc_dict['y'][id_label]
+                            yerr = mcmc_dict['yerr'][id_label]
+                            sed_params = self.fast_sed_fitter(wvs, y, yerr)
+                            sed_array = self.fast_sed(sed_params, wv_array)
+                            graybody = self.fast_sed(sed_params, wvs)[0]
+                            delta_y = y - graybody
+                            med_delta = np.median(y / delta_y)
+
+                            # Compare Schrieber 2018 fit
+                            t_forced = (32.9 + 4.6 * (z_med[id_label] - 2)) / (1 + z_med[id_label])
+                            a_forced = self.get_A_given_z_M_T(z_med[id_label], m_med[id_label],
+                                                              (32.9 + 4.6 * (z_med[id_label] - 2)))
+                            sed_forced_array = self.graybody_fn((a_forced, t_forced), wv_array)
+
+                            flat_samples = mcmc_dict['mcmc_dict'][id_label]
+                            mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
+                                        for i in range(np.shape(flat_samples)[1])]
+
+                            mcmc_lo = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
+                            mcmc_50 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
+                            mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
+
+                            # Plot model SEDs
+                            # ax.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
+                            if ip:
+                                ax.plot(wv_array, sed_forced_array[0] * 1e3, 'm:', lw=0.5)
+
+                            LIR = self.fast_LIR([mcmc_out[0][1], mcmc_out[1][1]], z_med[id_label])
+
+                            ax.plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.8, label=None)
+                            ax.plot(wv_array, mcmc_lo[0] * 1e3, ":", color='c', lw=0.6, label=None)
+                            ax.plot(wv_array, mcmc_hi[0] * 1e3, ":", color='c', lw=0.6, label=None)
+                            ax.fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
+                                            alpha=0.3, edgecolor='c')
+
+                            # ax.legend(loc='upper left', frameon=False)
+
+                            ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)))
+                            ax.text(9.0e0, 3e1, "Trf={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])))
+                            ax.text(9.0e0, 8e0, "Ngals={0:0.0f}".format(ngals[id_label]))
+                            # ax.text(9.0e0, 2e0, "LIR={0:.1f}".format(np.log10(LIR)))
+
+                            for iwv, wv in enumerate(wvs):
+                                if wv in [24, 70]:
+                                    color = 'b'
+                                elif wv in [100, 160]:
+                                    color = 'g'
+                                elif wv in [250, 350, 500]:
+                                    color = 'r'
+                                elif wv in [850]:
+                                    color = 'y'
+
+                                if bootstrap_dict is not None:
+                                    for iboot in range(len(bootstrap_dict['sed_bootstrap_fluxes_dict'][label])):
+                                        yplot_boot = bootstrap_dict['sed_bootstrap_fluxes_dict'][label][iboot] * 1e3
+                                        # pdb.set_trace()
+                                        ax.scatter(wvs, yplot_boot, color=color, alpha=0.1)
+
+                                sigma_upper_limit = 3
+                                yerr_diag = np.sqrt(np.diag(yerr)[iwv])
+                                if y[iwv] - yerr_diag < 0:
+                                    yplot = yerr_diag * sigma_upper_limit
+                                    ax.errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                                                fmt="." + color, uplims=True)
+                                else:
+                                    yplot = y[iwv]
+                                    ax.scatter(wv, yplot * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
+                                    ax.errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                                                fmt="." + color, capsize=0)
+
+                            ax.set_xscale('log')
+                            ax.set_yscale('log')
+
+                            if ix == 0:
+                                ax.set_title(zlab.replace('redshift_', 'z=').replace('_', '-'))
+                            if iz:
+                                ax.set_yticklabels([])
+
+                            if ix != plen - 1:
+                                ax.set_xticklabels([])
+
+                            if show_qt:
+                                if iz == 0:
+                                    if ip:
+                                        ax.set_ylabel("Star-Forming")
+                                    else:
+                                        ax.set_ylabel("Quiescent")
+
+                            if iz == zlen - 1:
+                                ax.yaxis.set_label_position("right")
+                                ax.set_ylabel(mlab.replace('stellar_mass_', 'log(M/Msun)=').replace('_', '-'))
+
+                            ax.set_ylim([1e-2, 5e2])
+
+        fig.text(0.5, -0.0075, 'Observed Wavelength [micron]', ha='center')
+        fig.text(0.146, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
+
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
+    def plot_mcmc_seds_debug(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'),
                        save_path=None, save_filename="SEDs.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         wvs = mcmc_dict['wavelengths']

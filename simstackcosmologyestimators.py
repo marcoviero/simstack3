@@ -354,6 +354,92 @@ class SimstackCosmologyEstimators:
 
         return return_dict
 
+    a_nu_flux_to_mass = 6.7e19
+
+    def get_mmol_from_mcmc_samples(self, mcmc_samples, percentiles=[16, 25, 32, 50, 68, 75, 84], min_detections=1):
+        lir_dict = {}
+        sfr_dict = {}
+        mmol_dict = {}
+        tobs_dict = {}
+        mcmc_dict = {}
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+
+        return_dict = {'lir_dict': lir_dict, 'Tobs_dict': tobs_dict, 'sfr_dict': sfr_dict, 'Mmol_dict': mmol_dict,
+                       'percentiles': percentiles,
+                       'z_median': mcmc_samples['z_median'], 'm_median': mcmc_samples['m_median'],
+                       'ngals': mcmc_samples['ngals'], 'mcmc_out': mcmc_dict}
+
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    if type(mcmc_samples['mcmc_dict'][id_label]) is not float:
+                        if np.sum((mcmc_samples['y'][id_label] - np.sqrt(
+                                np.diag(mcmc_samples['yerr'][id_label]))) > 0) >= min_detections:
+                            mcmc_out = [np.percentile(mcmc_samples['mcmc_dict'][id_label][:, i], percentiles) for i in
+                                        range(mcmc_samples['mcmc_dict'][id_label].shape[1])]
+                            mcmc_dict[id_label] = mcmc_out
+                            z_median = mcmc_samples['z_median'][id_label]
+
+                            for i, vpercentile in enumerate(percentiles):
+
+                                rest_frame_850 = 850 * (1 + z_median)
+                                flux_850 = self.graybody_fn([mcmc_out[0][i], mcmc_out[1][i]], [rest_frame_850])
+                                L_850A = self.fast_L850(flux_850, z_median)
+                                M_mol = L_850A / a_nu_flux_to_mass
+
+                                # Scoville 2017, Eqn 2.
+                                sfr = 35 * (M_mol / 1e10) ** (0.89) * ((1 + z_median) / 3) ** (0.95)
+
+                                if id_label not in lir_dict:
+                                    tobs_dict[id_label] = {str(vpercentile): mcmc_out[1][i]}
+                                    sfr_dict[id_label] = {str(vpercentile): sfr}
+                                    mmol_dict[id_label] = {str(vpercentile): M_mol}
+                                    tobs_dict[id_label] = {str(vpercentile): mcmc_out[1][i]}
+
+                                    lir_dict[id_label] = \
+                                        {str(vpercentile):
+                                             self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median)}
+
+                                else:
+                                    tobs_dict[id_label][str(vpercentile)] = mcmc_out[1][i]
+                                    sfr_dict[id_label][str(vpercentile)] = sfr
+                                    mmol_dict[id_label][str(vpercentile)] = M_mol
+                                    lir_dict[id_label][str(vpercentile)] = \
+                                        self.fast_LIR([mcmc_out[0][i], mcmc_out[1][i]], z_median)
+
+        return return_dict
+
+    def estimate_sfr_density(self, sfr_dict, effective_map_area):
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        lird_dict = {}
+        sfrd_dict = {}
+        results_dict = {'sfrd_dict': sfrd_dict, 'lird_dict': lird_dict, 'effective_area': effective_map_area,
+                        'z_median': sfr_dict['z_median'], 'm_median': sfr_dict['m_median'], 'ngals': sfr_dict['ngals']}
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    ngals = sfr_dict['ngals'][id_label]
+                    zlo = float(zlab.split('_')[-2])
+                    zhi = float(zlab.split('_')[-1])
+
+                    # Get median redshift and stellar-mass and completeness-correct
+                    #z_median = sfr_dict['z_median'][id_label]
+                    #m_median = sfr_dict['m_median'][id_label]
+
+                    if id_label in sfr_dict['sfr_dict']:
+                        sfrd_dict[id_label] = \
+                            self.estimate_lird(sfr_dict['sfr_dict'][id_label], ngals,
+                                          effective_map_area, zlo, zhi, sfrd=True)  # , completeness=comp)
+                        lird_dict[id_label] = \
+                            self.estimate_lird(sfr_dict['lir_dict'][id_label], ngals,
+                                               effective_map_area, zlo, zhi)  # , completeness=comp)
+        return results_dict
+
     def estimate_luminosity_density(self, lir_dict, effective_map_area):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         lird_dict = {}
@@ -370,14 +456,14 @@ class SimstackCosmologyEstimators:
                     zhi = float(zlab.split('_')[-1])
 
                     # Get median redshift and stellar-mass and completeness-correct
-                    z_median = lir_dict['z_median'][id_label]
-                    m_median = lir_dict['m_median'][id_label]
+                    #z_median = lir_dict['z_median'][id_label]
+                    #m_median = lir_dict['m_median'][id_label]
 
-                    qcomp = self.estimate_quadri_correction(z_median, m_median)
-                    comp = 1
-                    if (qcomp > 0.3) and (qcomp < 0.99):
-                        comp = qcomp
-                        print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(z_median, m_median, comp))
+                    #qcomp = self.estimate_quadri_correction(z_median, m_median)
+                    #comp = 1
+                    #if (qcomp > 0.3) and (qcomp < 0.99):
+                    #    comp = qcomp
+                    #    print("z={:0.2f}, m={:0.2f} , {:0.2f}".format(z_median, m_median, comp))
 
                     if id_label in lir_dict['lir_dict']:
                         lird_dict[id_label] = \
@@ -413,6 +499,40 @@ class SimstackCosmologyEstimators:
                 'lird_total': lird_total, 'lird_total_error': lird_error,
                 'sfrd_total': conv_lir_to_sfr * lird_total, 'sfrd_total_error': conv_lir_to_sfr * lird_error}
 
+    def estimate_total_sfrd_array(self, sfrd_dict):
+
+        ''' Estimate Weighted Errors'''
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+        sfrd_array_mid = np.zeros(ds)
+        sfrd_array_err2 = np.zeros(ds)
+        lird_array_mid = np.zeros(ds)
+        lird_array_err2 = np.zeros(ds)
+
+        for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                    id_label = "__".join([zlab, mlab, plab])
+
+                    if id_label in sfrd_dict['sfrd_dict']:
+                        sfrd_array_mid[iz, im, ip] = sfrd_dict['sfrd_dict'][id_label]['sfrd']
+                        sfrd_array_err2[iz, im, ip] = sfrd_dict['sfrd_dict'][id_label]['sfrd_err2']
+                        lird_array_mid[iz, im, ip] = sfrd_dict['lird_dict'][id_label]['lird']
+                        lird_array_err2[iz, im, ip] = sfrd_dict['lird_dict'][id_label]['lird_err2']
+
+        sfrd_total = np.sum(sfrd_array_mid[:, :, 1], axis=1) + np.sum(sfrd_array_mid[:, :, 0], axis=1)
+        sfrd_error = np.sqrt(np.sum(sfrd_array_err2[:, :, 1], axis=1) + np.sum(sfrd_array_err2[:, :, 0], axis=1))
+
+        lird_total = np.sum(lird_array_mid[:, :, 1], axis=1) + np.sum(lird_array_mid[:, :, 0], axis=1)
+        lird_error = np.sqrt(np.sum(lird_array_err2[:, :, 1], axis=1) + np.sum(lird_array_err2[:, :, 0], axis=1))
+
+        return {'sfrd_array': {'50': sfrd_array_mid, '32': sfrd_array_mid - np.sqrt(sfrd_array_err2),
+                               '68': sfrd_array_mid + np.sqrt(sfrd_array_err2)},
+                'sfrd_total': sfrd_total, 'sfrd_total_error': sfrd_error,
+                'lird_array': {'50': lird_array_mid, '32': lird_array_mid - np.sqrt(lird_array_err2),
+                               '68': lird_array_mid + np.sqrt(lird_array_err2)},
+                'lird_total': lird_total, 'lird_total_error': lird_error}
+
     def estimate_cib(self, sed_bootstrap_dict, area_deg2):
 
         bin_keys = list(self.config_dict['parameter_names'].keys())
@@ -438,7 +558,7 @@ class SimstackCosmologyEstimators:
     #    vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
     #    return lir * 1e0 * ngals / vol.value / completeness
 
-    def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, completeness=1.0):
+    def estimate_lird(self, lir, ngals, area_deg2, zlo, zhi, sfrd=False, completeness=1.0):
         vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
         lird = lir['50'] * ngals / vol.value / completeness
 
@@ -446,10 +566,14 @@ class SimstackCosmologyEstimators:
 
         dlir = (lir['68'] - lir['32']) / 2
         elird2 = ((ngals * dlir) ** 2 + (lir['50'] * ngals * cv) ** 2) / vol.value ** 2 / completeness ** 2
-        lird_dict_out = {'lird': lird, 'lird_err2': elird2}
+        if sfrd:
+            lird_dict_out = {'sfrd': lird, 'sfrd_err2': elird2}
+        else:
+            lird_dict_out = {'lird': lird, 'lird_err2': elird2}
 
         return lird_dict_out
 
     def estimate_nuInu(self, wavelength_um, flux_Jy, area_deg2, ngals, completeness=1):
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
+
