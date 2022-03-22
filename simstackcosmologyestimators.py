@@ -305,7 +305,7 @@ class SimstackCosmologyEstimators:
             Terr = Tin
             Aerr = Ain
         else:
-            Terr = np.min([np.max([Terr, 0.05 * Tin]), Tin])
+            Terr = np.min([np.max([Terr, 0.005 * Tin]), Tin])
 
         theta0 = Ain, Tin, Aerr, Terr
 
