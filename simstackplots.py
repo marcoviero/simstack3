@@ -5,16 +5,24 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
+from lmfit import Parameters, minimize, fit_report
+import corner
+
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
+a_nu_flux_to_mass = 6.7e19
 sigma_upper_limit = 3
 
-font = {'size': 11.5}
+font = {'size': 14}
 matplotlib.rc('font', **font)
 #plt.rcParams.update({
 #  "text.usetex": True,
 #  "font.family": "Helvetica"
 #})
+
+#plt.rcParams['text.usetex'] = True
+#matplotlib.rc('text', usetex=True)
+#matplotlib.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
 
 class SimstackPlots(SimstackToolbox):
 
@@ -174,8 +182,8 @@ class SimstackPlots(SimstackToolbox):
             plt.fill_between(z_mid, np.log10([np.max([i, 0.01]) for i in lird_total - lird_error]),
                              np.log10(lird_total + lird_error), facecolor='c', alpha=0.3, edgecolor='c')
             plt.plot(z_mid, np.log10(lird_total), '-', label='total', color='c')
-            plt.xlabel('redshift')
-            plt.ylabel('IR Luminosity Density [Lsun Mpc3]')
+            plt.xlabel('Redshift')
+            plt.ylabel('IR Luminosity Density [Lsun Mpc^-3]')
             plt.xlim([0, z_bins[-1]])
             plt.ylim(ylim)
             plt.legend(loc='lower left', frameon=False)
@@ -236,8 +244,8 @@ class SimstackPlots(SimstackToolbox):
             ye[1] = np.log10(yh) - np.log10(y0)
             #plt.errorbar(z0, np.log10(y0), xerr=ze, yerr=ye, color='k', label='Gruppioni+ 2020')
 
-            plt.xlabel('redshift')
-            plt.ylabel('SFR Density [Msun/yr Mpc3]')
+            plt.xlabel('Redshift')
+            plt.ylabel('SFR Density [Msun yr^-1 Mpc^-3]')
             plt.xlim([0, z_bins[-1] - 0.5])
             plt.ylim([-3.75, -0.75])
             # plt.legend(loc='lower left', frameon=False)
@@ -245,8 +253,6 @@ class SimstackPlots(SimstackToolbox):
 
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
-
-    conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 
     def plot_total_sfrd(self, total_sfrd_dict, plot_lird=True, ylim=[-3.75, -0.75],
                         show_qt=False, save_path=None, save_filename="SFRD.pdf"):
@@ -264,37 +270,6 @@ class SimstackPlots(SimstackToolbox):
         ybow1 = [0.0044, 0.029, 0.0717, 0.089, 0.08, 0.0362, 0.012, 0.005, 0.0023]
         # plt.fill_between(xbow,np.log10(ybow0),np.log10(ybow1), facecolor='k', alpha=0.2, edgecolor='k', label='Bouwens+ 2020')
 
-        # LIRD
-        if plot_lird:
-            ax2 = ax.twinx()
-            lird_total = total_sfrd_dict['lird_total']
-            lird_error = total_sfrd_dict['lird_total_error']
-            ax2.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in (lird_total - lird_error)]),
-                             np.log10((lird_total + lird_error)), facecolor='k', alpha=0.2, edgecolor='k',
-                             label='This Work - L_SED SFR')
-            ax2.plot(z_mid, np.log10(lird_total), '-', color='k', alpha=0.5)
-            # Adding Twin Axes to plot using dataset_2
-            ax2.set_ylim(np.log10(1 / conv_lir_to_sfr * 10 ** np.array(ylim)))
-
-            ax2.set_ylabel('log(LIR Density) [Lsun / Mpc^3]')
-            ax2.tick_params(axis='y')
-
-        # SFRD
-        for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-            label = "log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
-            ax.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 1]), '-',
-                    label=label)
-        if show_qt:
-            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-                label = "Quiescent log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
-                ax.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 0]), '--',
-                        label=label)
-
-        ax.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
-                        np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c',
-                        label='This Work - L_850 SFR')
-        ax.plot(z_mid, np.log10(sfrd_total), '-', color='c')
-
         # OTHERS
         # Zavala
         xzav = [0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
@@ -304,6 +279,8 @@ class SimstackPlots(SimstackToolbox):
                  0.0032, 0.0026]
         ax.fill_between(xzav, np.log10(yzav0), np.log10(yzav1), facecolor='r', alpha=0.1, edgecolor='r',
                         label='Zavala+ 2022')
+
+        ax.legend(loc='lower left', frameon=True, prop={'size': 12})
 
         # Bethermin
         xsides = [0, 0.5, 1, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 6.5, 7.0]
@@ -331,17 +308,64 @@ class SimstackPlots(SimstackToolbox):
         ye[1] = np.log10(yh) - np.log10(y0)
         # ax.errorbar(z0, np.log10(y0), xerr=ze, yerr=ye, color='k', label='Gruppioni+ 2020')
 
-        ax.set_xlabel('redshift')
-        ax.set_ylabel('log(SFR Density) [Msun/yr Mpc3]')
-        # ax.ylabel('\rho_{SFR} [M_{\odot}/yr Mpc3]')
+        # LIRD
+        if plot_lird:
+
+            lird_total = total_sfrd_dict['lird_total']
+            lird_error = total_sfrd_dict['lird_total_error']
+            ax.fill_between(z_mid, np.log10(
+                conv_lir_to_sfr * np.array([np.max([i, 0.00001]) for i in (lird_total - lird_error)])),
+                            np.log10(conv_lir_to_sfr * (lird_total + lird_error)), facecolor='k', alpha=0.2,
+                            edgecolor='k',
+                            label='This Work - L_SED')
+
+            ax2 = ax.twinx()
+            ax2.plot(z_mid, np.log10(lird_total), '-', color='k', alpha=0.75)
+            # Adding Twin Axes to plot using dataset_2
+            ax2.set_ylim(np.log10(1 / conv_lir_to_sfr * 10 ** np.array(ylim)))
+
+            ax2.set_ylabel('log(LIR Density) [Lsun Mpc^-3]')
+            ax2.tick_params(axis='y')
+            # ax2.legend(loc='lower left', frameon=True, prop={'size': 12})
+
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "This Work - log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                ax.plot(z_mid, np.log10(conv_lir_to_sfr * total_sfrd_dict['lird_array']['50'][:, im, 1]), '-',
+                        label=label)
+            if show_qt:
+                for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                    label = "Quiescent log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                    ax.plot(z_mid, np.log10(conv_lir_to_sfr * total_sfrd_dict['lird_array']['50'][:, im, 0]), '--',
+                            label=label)
+        else:
+            # SFRD
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                label = "This Work - log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                ax.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 1]), '-',
+                        label=label)
+            if show_qt:
+                for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                    label = "Quiescent log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                    ax.plot(z_mid, np.log10(total_sfrd_dict['sfrd_array']['50'][:, im, 0]), '--',
+                            label=label)
+
+        ax.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
+                        np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c',
+                        label='This Work - L_850')
+        ax.plot(z_mid, np.log10(sfrd_total), '-', color='c')
+
+        ax.set_xlabel('Redshift')
+        ax.set_ylabel('log(SFR Density) [Msun yr^-1 Mpc^-3]')
+        # ax.ylabel('\rho_{SFR} [M_{\odot} yr^-1 Mpc^-3]')
         ax.set_xlim([0, z_bins[-1] - 1])
         ax.set_ylim(ylim)
-        ax.legend(loc='lower left', frameon=True, prop={'size': 12})
+        ax.tick_params(axis="both", labelsize=14)
+        ax.legend(loc='lower left', frameon=True, prop={'size': 11})
 
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
-    def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'),
+    def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'), fontsize=11.5,
                        show_qt=False, save_path=None, save_filename="SEDs.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         wvs = mcmc_dict['wavelengths']
@@ -410,14 +434,20 @@ class SimstackPlots(SimstackToolbox):
                             ax.fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
                                             alpha=0.3, edgecolor='c')
 
-                            # ax.legend(loc='upper left', frameon=False)
+                            # Get 850 SFR
+                            rest_frame_850 = 850 * (1 + z_med[id_label])
+                            flux_850 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], [rest_frame_850])
+                            L_850A = self.fast_L850(flux_850, z_med[id_label])
+                            M_mol = L_850A / a_nu_flux_to_mass
+                            sfr = 35 * (M_mol / 1e10) ** (0.89) * ((1 + z_med[id_label]) / 3) ** (0.95)
 
-                            ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)))
-                            ax.text(9.0e0, 3e1, "Trf={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])))
-                            ax.text(9.0e0, 8e0, "Ngals={0:0.0f}".format(ngals[id_label]))
-                            # ax.text(9.0e0, 2e0, "LIR={0:.1f}".format(np.log10(LIR)))
+                            ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)),fontsize=fontsize)
+                            ax.text(9.0e0, 2.5e1, "SFR={0:.0f}Msun/yr".format(sfr[0]),fontsize=fontsize)
+                            ax.text(9.0e0, 7.2e0, "Trf={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])),fontsize=fontsize)
+                            ax.text(9.0e0, 2e0, "Ngals={0:0.0f}".format(ngals[id_label]),fontsize=fontsize)
+
                             total_ngals += ngals[id_label]
-                            print('Total cumulative galaxies {0:0.0f}='.format(total_ngals))
+                            #print('Total cumulative galaxies={0:0.0f}'.format(total_ngals))
 
                             for iwv, wv in enumerate(wvs):
                                 if wv in [24, 70]:
@@ -467,12 +497,14 @@ class SimstackPlots(SimstackToolbox):
 
                             if iz == zlen - 1:
                                 ax.yaxis.set_label_position("right")
-                                ax.set_ylabel(mlab.replace('stellar_mass_', 'log(M/Msun)=').replace('_', '-'))
+                                #ax.set_ylabel(mlab.replace('stellar_mass_', 'log(M/Msun)=').replace('_', '-'))
+                                ax.set_ylabel(mlab.replace('stellar_mass_', '').replace('_', '-'))
 
                             ax.set_ylim([1e-2, 5e2])
 
         fig.text(0.5, -0.0075, 'Observed Wavelength [micron]', ha='center')
-        fig.text(0.146, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
+        fig.text(0.146, 0.5, 'Flux Density [Jy beam^-1]', va='center', rotation='vertical')
+        fig.text(0.8535, 0.5, 'log(Stellar Mass) [log(Msun)]', va='center', rotation='vertical')
 
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
@@ -627,6 +659,99 @@ class SimstackPlots(SimstackToolbox):
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
+    def plot_test_mcmc_seds(self, mcmc_dict, flat_samples, theta0, id_label, bootstrap_dict=None, errors=('25', '75')):
+
+        wvs = mcmc_dict['wavelengths']
+        wv_array = self.loggen(8, 1000, 100)
+        ngals = mcmc_dict['ngals']
+        z_med = mcmc_dict['z_median']
+
+        fig, axs = plt.subplots(1, 1, figsize=(10, 7))
+        axs.text(9.0e0, 1e2, "Ngals={0:.0f}".format(ngals[id_label]))
+
+        y = mcmc_dict['sed_fluxes_dict'][id_label]
+        yerr = np.cov(mcmc_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+
+        Ain, Tin, Aerr, Terr = theta0
+        sed_params = Parameters()
+        sed_params.add('A', value=Ain, vary=True)
+        sed_params.add('T_observed', value=Tin, max=Tin * 1.3, vary=True)
+        sed_params.add('beta', value=1.8, vary=False)
+        sed_params.add('alpha', value=2.0, vary=False)
+        sed_array = self.fast_sed(sed_params, wv_array)
+
+        axs.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
+
+        if np.sum(y > 0):
+
+            try:
+                prior_label = "A0={0:.1f}+-{1:.1f}, T0={2:.1f}+-{3:.1f} (Trf0={4:.1f})".format(Ain, Aerr, Tin, Terr,
+                                                                                               Tin * (1 + z_med[
+                                                                                                   id_label]))
+            except:
+                prior_label = "A0={0:.1f}, T0={1:.1f}+-{2:.1f} (Trf0={3:.1f})".format(Ain, Tin, Terr,
+                                                                                      Tin * (1 + z_med[id_label]))
+            axs.text(9.0e0, 1.75e2, prior_label)
+
+            mcmc_out = [np.percentile(flat_samples[:, i], [float(errors[0]), 50, float(errors[1])])
+                        for i in range(np.shape(flat_samples)[1])]
+            mcmc_lo = self.graybody_fn([mcmc_out[0][0], mcmc_out[1][0]], wv_array)
+            mcmc_50 = self.graybody_fn([mcmc_out[0][1], mcmc_out[1][1]], wv_array)
+            mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
+            mcmc_label = "A={0:.1f}, T={1:.1f} (Trf={2:.1f})".format(mcmc_out[0][1], mcmc_out[1][1],
+                                                                     mcmc_out[1][1] * (1 + z_med[id_label]))
+
+            axs.plot(wv_array, mcmc_50[0] * 1e3, color='c', lw=0.9, label=mcmc_label)
+            axs.plot(wv_array, mcmc_lo[0] * 1e3, ":", color='c', lw=0.8, label=None)
+            axs.plot(wv_array, mcmc_hi[0] * 1e3, ":", color='c', lw=0.8, label=None)
+            axs.fill_between(wv_array, mcmc_lo[0] * 1e3, mcmc_hi[0] * 1e3, facecolor='c',
+                             alpha=0.3, edgecolor='c')
+        else:
+            pdb.set_trace()
+
+        for iwv, wv in enumerate(wvs):
+            if wv in [24, 70]:
+                color = 'b'
+            elif wv in [100, 160]:
+                color = 'g'
+            elif wv in [250, 350, 500]:
+                color = 'r'
+            elif wv in [850]:
+                color = 'y'
+
+            if bootstrap_dict is not None:
+                for iboot in range(len(bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label.replace('.', 'p')])):
+                    yplot_boot = bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label.replace('.', 'p')][iboot] * 1e3
+                    axs.scatter(wvs, yplot_boot, color=color, alpha=0.1)
+
+            yerr_diag = np.sqrt(np.diag(yerr)[iwv])
+            if y[iwv] - yerr_diag < 0:
+                yplot = y[iwv] / yerr_diag * sigma_upper_limit
+                yplot = yerr_diag * sigma_upper_limit
+                uplims = True
+                capsize = 1
+                axs.errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                             fmt="." + color, uplims=uplims)
+            else:
+                uplims = False
+                yplot = y[iwv]
+                capsize = 0
+                axs.scatter(wv, yplot * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
+                axs.errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                             fmt="." + color, capsize=capsize, uplims=uplims)
+
+        axs.set_xscale('log')
+        axs.set_yscale('log')
+        axs.set_ylim([5e-3, 5e2])
+        axs.legend(loc='upper left', frameon=False)
+        axs.set_title(id_label)
+
+        corner.corner(flat_samples, color='k', smooth=1.1, quantiles=(0.025, 0.975),
+                      plot_datapoints=False, fill_contours=False, bins=25, levels=(1 - np.exp(-0.5), 1 - np.exp(-2.)),
+                      truths=[mcmc_out[0][1], mcmc_out[1][1]], truth_color='r',
+                      labels=[r'$A$', r'$T$'], label_kwargs={'fontsize': 20})
+        plt.show()
+
     def plot_seds(self, sed_results_dict):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         colors = ['y', 'c', 'b', 'r', 'g']
@@ -719,9 +844,9 @@ class SimstackPlots(SimstackToolbox):
                             if not ip:
                                 axs[ip, iwv].set_title(wlab)
                             else:
-                                axs[ip, iwv].set_xlabel('redshift')
+                                axs[ip, iwv].set_xlabel('Redshift')
                             if not iwv:
-                                axs[ip, iwv].set_ylabel('flux density (Jy)')
+                                axs[ip, iwv].set_ylabel('Flux Density (Jy)')
                             axs[ip, iwv].set_yscale('log')
                             # axs[ip, iwv].set_xlim([0., 8])
                             axs[ip, iwv].set_ylim([1e-3, 5e1])
@@ -735,9 +860,9 @@ class SimstackPlots(SimstackToolbox):
                             if not ip:
                                 axs[ip].set_title(wlab)
                             else:
-                                axs[ip].set_xlabel('redshift')
+                                axs[ip].set_xlabel('Redshift')
                             if not iwv:
-                                axs[ip].set_ylabel('flux density (Jy)')
+                                axs[ip].set_ylabel('Flux Density (Jy)')
                             axs[ip].set_yscale('log')
                             # axs[ip].set_xlim([0., 8])
                             axs[ip].set_ylim([1e-3, 5e1])
@@ -755,9 +880,9 @@ class SimstackPlots(SimstackToolbox):
                     axs[iwv].errorbar(flux_df[mlab].index, flux_df[mlab].values * 1e3, error_df[mlab].values * 1e3,
                                       label=mlab)
                     axs[iwv].set_title(wlab)
-                    axs[iwv].set_xlabel('redshift')
+                    axs[iwv].set_xlabel('Redshift')
                     if not iwv:
-                        axs[iwv].set_ylabel('flux density (Jy)')
+                        axs[iwv].set_ylabel('Flux Density (Jy)')
                     axs[iwv].set_yscale('log')
                     axs[iwv].set_ylim([1e-3, 5e1])
                     if (iwv == 0):
@@ -804,21 +929,21 @@ class SimstackPlots(SimstackToolbox):
                         axs[ip].scatter(z_data_array, sed_lir_vs_z_array[:, im, ip])
                         axs[ip].plot(z_data_array, sed_lir_vs_z_array[:, im, ip], label=mlab)
                         axs[ip].set_ylabel('LIR (M_sun)')
-                        axs[ip].set_xlabel('redshift')
+                        axs[ip].set_xlabel('Redshift')
                         axs[ip].set_ylim([9, 13.5])
                         axs[ip].set_title(plab)
                 else:
                     axs.scatter(z_data_array, sed_lir_vs_z_array[:, im])
                     axs.plot(z_data_array, sed_lir_vs_z_array[:, im], label=mlab)
                     axs.set_ylabel('LIR (M_sun)')
-                    axs.set_xlabel('redshift')
+                    axs.set_xlabel('Redshift')
                     axs.set_ylim([9, 13.5])
         else:
             print("Skipping SED plotting because only single wavelength measured.")
 
-    def plot_rest_frame_temperature(self, lir_in, xlim=None, ylim=[1, 100], xlog=False, ylog=True, fit_p=[1.35, 0.09],
-                                    show_prior=False, show_fit=True, show_cmb=False, save_path=None,
-                                    save_filename="Tdust.pdf"):
+    def plot_rest_frame_temperature(self, lir_in, xlim=None, ylim=[1, 100], xlog=False, ylog=True,
+                                    print_values=False,  show_fit=True, show_cmb=False, save_path=None,
+                                    not_flat_prior=None, save_filename="Tdust.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
@@ -830,77 +955,123 @@ class SimstackPlots(SimstackToolbox):
         z_pf = []
         t_pf = []
         for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            tave = []
+            terr = []
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     id_label = "__".join([zlab, mlab, plab])
                     if ip:
                         if id_label in lir_in['Tobs_dict']:
-                            # pdb.set_trace()
-                            t_obs[iz, im, ip] = lir_in['mcmc_out'][id_label][1][
-                                3]  # lir_in['Tobs_dict'][id_label]['50']
-                            t_err[iz, im, ip] = lir_in['mcmc_out'][id_label][1][5] - lir_in['mcmc_out'][id_label][1][
-                                1]  # lir_in['Tobs_dict'][id_label]['50']
+                            t_obs[iz, im, ip] = lir_in['mcmc_out'][id_label][1][3]
+                            t_err[iz, im, ip] = np.sqrt(
+                                (lir_in['mcmc_out'][id_label][1][5] - lir_in['mcmc_out'][id_label][1][1]) ** 2 +
+                                ((t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][1])) -
+                                 (t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][0]))) ** 2)
                             t_rf[iz, im, ip] = t_obs[iz, im, ip] * (1 + lir_in['z_median'][id_label])
+                            if not_flat_prior is not None:
+                                if id_label not in not_flat_prior:
+                                    tave.append(t_rf[iz, im, ip])
+                                    terr.append(t_err[iz, im, ip] ** 2)
+                            else:
+                                tave.append(t_rf[iz, im, ip])
+                                terr.append(t_err[iz, im, ip] ** 2)
                             sm[iz, im, ip] = lir_in['m_median'][id_label]
                             zmed[iz, im, ip] = lir_in['z_median'][id_label]
 
                             z_pf.append(lir_in['z_median'][id_label])
                             t_pf.append(t_rf[iz, im, ip])
+            if print_values:
+                print(zlab + ' T = {0:0.1f}+= {1:0.1f}'.format(np.mean(tave), np.sqrt(np.mean(terr))))
 
-        fig, axs = plt.subplots(1, 1, figsize=(10, 7))
+        plt.figure(figsize=(9, 6))
+
         color = ['r', 'g', 'b', 'y', 'c']
         for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
             label = "log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
-            # axs.plot(zmed[:, im, 1], (t_rf[:, im, 1]), "o", label=label, c=color[im])
-            axs.scatter(zmed[:, im, 1], (t_rf[:, im, 1]), marker='o', s=90, facecolors='none', edgecolors=color[im],
+            plt.scatter(zmed[:, im, 1], (t_rf[:, im, 1]), marker='o', s=90, facecolors='none', edgecolors=color[im],
                         label=label)
-            # pdb.set_trace()
-            axs.errorbar(zmed[:, im, 1], (t_rf[:, im, 1]), t_err[:, im, 1], fmt="." + color[im])
+            plt.errorbar(zmed[:, im, 1], (t_rf[:, im, 1]), t_err[:, im, 1], fmt="." + color[im])
+
+        if not_flat_prior is not None:
+            for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                    id_label = "__".join([zlab, mlab, plab])
+                    if id_label in not_flat_prior:
+                        # pass
+                        plt.scatter(zmed[iz, im, 1], (t_rf[iz, im, 1]), marker='o', s=90, color=color[im])
+
         z_in = np.linspace(0, zmed[-1, 0, 1] + 1.5)
-        if show_prior:
-            fit_label = "Tfit = 10^({0:.1f} + {1:.1f}z)".format(fit_p[0], fit_p[1])
-            axs.plot(z_in, (10 ** (fit_p[0] + fit_p[1] * z_in)), '--', c='c', lw=2, label=fit_label)
 
         if show_cmb:
-            axs.plot(z_in, (1 + z_in) * 2.73, '--', c='k', lw=2, label='CMB')
+            plt.plot(z_in, (1 + z_in) * 2.73, '--', c='k', lw=2, label='CMB')
 
-        axs.errorbar(4.5, 47, 5, c='k', markersize=8, marker='s', label='Bethermin+ 2020')
-        axs.errorbar(5.5, 38, 8, c='r', markersize=8, marker='s', label='Faisst+ 2020')
-        axs.errorbar(7, 52, 11, c='g', markersize=8, marker='s', label='Ferrara+ 2022')
-        axs.errorbar(7.15, 54, 10, c='c', markersize=8, marker='s', label='Hashimoto+ 2019')
-        axs.errorbar(7.075, 47, 6, c='b', markersize=8, marker='s', label='Sommovigo+ 2022')
-        axs.errorbar(8.31, 80, 10, fmt="." + 'm', lolims=True, label='Bakx+ 2020')
-        axs.errorbar(8.4, 91, 23, fmt="." + 'y', lolims=True, label='Laport+ 2017, Behrens+ 2018')
+        plt.errorbar(4.5, 47, 5, c='k', markersize=8, marker='s', label='Bethermin+ 2020')
+        plt.errorbar(5.5, 38, 8, c='r', markersize=8, marker='s', label='Faisst+ 2020')
+        plt.errorbar(7, 52, 11, c='g', markersize=8, marker='s', label='Ferrara+ 2022')
+        plt.errorbar(7.15, 54, 10, c='c', markersize=8, marker='s', label='Hashimoto+ 2019')
+        plt.errorbar(7.075, 47, 6, c='b', markersize=8, marker='s', label='Sommovigo+ 2022')
+        plt.errorbar(8.41, 91, 23, c='y', markersize=8, marker='s', label='Laporte+ 2017, Behrens+ 2018')
+        plt.errorbar(8.29, 80, 10, fmt="." + 'm', markersize=12, lolims=True, label='Bakx+ 2020')
         xmod = np.linspace(0, 9)
-        axs.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero+ 2013')
-        # axs.plot(xmod, xmod * (38 / 8) + 24, label='Schrieber+ 2018') # Eyeball estimate
-        axs.plot(xmod, 32.9 + 4.6 * (xmod - 2), label='Schrieber+ 2018')  # Eqn 15
-        axs.plot(xmod, xmod * ((63 - 27) / 9.25) + 27, label='Bouwens+ 2020')
+        plt.plot(xmod, 23 + xmod * ((39 - 23) / 4), label='Viero+ 2013')
+        plt.plot(xmod, 32.9 + 4.6 * (xmod - 2), label='Schreiber+ 2018')  # Eqn 15
+        plt.plot(xmod, xmod * ((63 - 27) / 9.25) + 27, label='Bouwens+ 2020')
 
-        # pdb.set_trace()
-        pfit = np.polyfit(z_pf, t_pf, 2)
-        print(pfit)
-        # axs.plot(z_in, pfit[2] + pfit[1] * z_in + pfit[0] * z_in**2)
-        # pfit = np.polyfit(z_pf, t_pf, 3)
-        # print(pfit)
-        # axs.plot(z_in, pfit[3] + pfit[2] * z_in + pfit[1] * z_in**2+ pfit[0] * z_in**3)
+        pfit = np.polyfit(z_pf, t_pf, 2, cov=True)
+        if print_values:
+            print(pfit[0])
+            print(np.sqrt(pfit[1]))
+
         if show_fit:
-            fit_label = "Tfit = {0:.1f} + {1:.1f}z + {2:.1f}z^2".format(pfit[2], pfit[1], pfit[0])
-            axs.plot(z_in, pfit[2] + pfit[1] * z_in + pfit[0] * z_in ** 2, '--', lw=2, label=fit_label)
+            fit_label = "Tfit = {0:.1f} + {1:.1f}z + {2:.1f}z^2".format(pfit[0][2], pfit[0][1], pfit[0][0])
+            plt.plot(z_in, pfit[0][2] + pfit[0][1] * z_in + pfit[0][0] * z_in ** 2, '--', lw=2, label=fit_label)
 
         if xlog:
-            axs.set_xscale('log')
+            plt.xscale('log')
         if ylog:
-            axs.set_yscale('log')
+            plt.yscale('log')
         if xlim is not None:
-            axs.set_xlim(xlim)
+            plt.xlim(xlim)
         else:
-            axs.set_xlim([z_in[0], z_in[-1] + .5])
-        axs.set_ylim(ylim)
-        axs.set_xlabel('Redshift')
-        axs.set_ylabel('Restframe Temperature [K]')
-        axs.legend(loc='upper left', prop={'size': 11})
+            plt.xlim([z_in[0], z_in[-1] + .5])
+        plt.ylim(ylim)
+        plt.xticks(fontsize=14)
+        plt.xlabel('Redshift')
+        plt.ylabel('Rest-frame Temperature [K]')
+        plt.legend(loc='upper left', prop={'size': 10.5})
 
+        if save_path is not None:
+            plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
+
+    def plot_dust_mass(self, sfr_dict, ylim=None, show_qt=False,
+                       save_path=None, save_filename="Mdust.pdf"):
+
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+        z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
+        z_mid = [(z_bins[i] + z_bins[i + 1]) / 2 for i in range(len(z_bins) - 1)]
+
+        M_dust = sfr_dict['Mdust_dict']
+        M_matrix = np.zeros([*ds])
+        for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+            for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                    id_label = "__".join([zlab, mlab, plab])
+                    if id_label in M_dust:
+                        M_matrix[iz, im, ip] = M_dust[id_label]['50']
+
+        fig = plt.figure(figsize=(9, 6))
+        for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+            plt.plot(z_mid, np.log10(M_matrix[:, im, 1]), label=mlab)
+
+        # Tamura 2018
+        plt.scatter([8.312], [np.log10(4e6)])
+
+        plt.xlabel('redshift')
+        plt.ylabel('log(Mdust/Msun)')
+        plt.xlim([0, z_bins[-1] - 0.5])
+        # plt.ylim([-3.75, -0.75])
+        plt.legend(loc='lower left', frameon=True)
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
@@ -927,8 +1098,8 @@ class SimstackPlots(SimstackToolbox):
         if ylog:
             axs.set_yscale('log')
         axs.set_ylim(ylim)
-        axs.set_xlabel('Stellar Mass [Mstar]')
-        axs.set_ylabel('SFR [Mstar/yr]')
+        axs.set_xlabel('Stellar Mass [Msun]')
+        axs.set_ylabel('SFR [Msun yr^-1]')
         axs.legend(loc='lower right')
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")

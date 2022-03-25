@@ -508,7 +508,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return Lrf[0]
 
-    def fast_LIR(self, theta, zin):  # Tin,betain,alphain,z):
+    def fast_LIR(self, theta, zin, dzin=None):
         '''This calls graybody_fn instead of fast_sed'''
         wavelength_range = self.loggen(8, 1000, 1000)
         model_sed = self.graybody_fn(theta, wavelength_range)
@@ -521,8 +521,19 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                     1.0E-13 * self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
                 zin) * 3.08568025E22) ** 2.0 / L_sun  # 4 * pi * D_L^2    units are L_sun/(Jy x Hz)
 
-        Lrf = Lir * conversion  # Jy x Hz
-        return Lrf.value[0]
+        Lrf = (Lir * conversion.value)[0]  # Jy x Hz
+
+        if dzin is not None:
+            dLrf = np.zeros([2])
+            for idz, dz in enumerate(dzin):
+                conversion = 4.0 * np.pi * (
+                        1.0E-13 * self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
+                    dz) * 3.08568025E22) ** 2.0 / L_sun  # 4 * pi * D_L^2    units are L_sun/(Jy x Hz)
+                dLrf[idz] = (Lir * conversion.value)[0]
+
+            return Lrf, dLrf
+
+        return Lrf
 
     def fast_Lir(self, m, zin):  # Tin,betain,alphain,z):
         '''I dont know how to do this yet'''
@@ -541,6 +552,19 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         Lrf = Lir * conversion  # Jy x Hz
         return Lrf
 
+    def fast_dust_mass(self, lambda_in, flux_in, z_in, T_in, beta=1.8):
+
+        nu_in = c * 1.e6 / lambda_in
+
+        kappa = 0.05 * (lambda_in / 870) ** (beta)  # m^2/kg -- Liang 2019
+
+        Lrf = self.fast_L850(flux_in, z_in)
+        Md = 1e-7 * Lrf / kappa / self.blackbody_fn(nu_in, T_in)  # erg/s/Hz  -- Eales 2009
+
+        conversion = 1 / 1.988e30
+
+        return Md[0] * conversion
+
     def black(self, nu_in, T):
         # h = 6.623e-34     ; Joule*s
         # k = 1.38e-23      ; Joule/K
@@ -555,6 +579,13 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         ret = num / den
 
         return ret
+
+    def blackbody_fn(self, nu_in, T_in):
+        h = 6.623e-34  # ; Joule*s
+        k = 1.38e-23  # ; Joule/K
+        c = 2.9979e8  # ; m/s
+
+        return 2 * h * (nu_in ** 3) / c ** 2 / (np.exp(h * nu_in / (k * T_in)) - 1)
 
     def clean_nans(self, dirty_array, replacement_char=0.0):
         clean_array = dirty_array.copy()
