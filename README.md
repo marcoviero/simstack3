@@ -131,6 +131,8 @@ To run from command line (equivalently directly in pyCharm):
 - Run by calling the script followed by the config.ini file:
 > python run_simstack_cmd_line.py config/uvista.ini
 
+** If you are using example.ini and get the error "Catalog not found: ../test_data/catalogs/UVISTA_DR2_master_v2.1_USE.csv", change the path of the catalog and the 4 maps from ../ to ./ **
+
 If you fail to add the config.ini file it will default to the one hardcoded in run_simstack_cmd_line (line 72).  
 Change that to your config file, if you prefer it that way.  
 
