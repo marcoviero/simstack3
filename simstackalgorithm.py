@@ -205,8 +205,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                                     real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                     if randomize:
                                         print('Shuffling!')
-                                        real_x = np.random.shuffle(real_x)
-                                        real_y = np.random.shuffle(real_y)
+                                        print(real_x[0], real_y[0])
+                                        np.random.shuffle(real_x)
+                                        np.random.shuffle(real_y)
+                                        print(real_x[0], real_y[0])
                                     layers[ilayer, real_x, real_y] += 1.0
                                     trimmed_labels.append(labels[ilabel])
                                     ilayer += 1
@@ -219,8 +221,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             if sum(ind_src) > 4:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                 if randomize:
-                                    real_x = np.random.shuffle(real_x)
-                                    real_y = np.random.shuffle(real_y)
+                                    np.random.shuffle(real_x)
+                                    np.random.shuffle(real_y)
                                 bt_split = 0.80
                                 left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
                                                                                     test_size=bt_split,
@@ -241,8 +243,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                             if sum(ind_src) > 0:
                                 real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                                 if randomize:
-                                    real_x = np.random.shuffle(real_x)
-                                    real_y = np.random.shuffle(real_y)
+                                    np.random.shuffle(real_x)
+                                    np.random.shuffle(real_y)
                                 layers[ilayer, real_x, real_y] += 1.0
                                 trimmed_labels.append(labels[ilabel])
                                 ilayer += 1
@@ -255,8 +257,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     if sum(ind_src) > 4:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                         if randomize:
-                            real_x = np.random.shuffle(real_x)
-                            real_y = np.random.shuffle(real_y)
+                            np.random.shuffle(real_x)
+                            np.random.shuffle(real_y)
                         bt_split = 0.80
                         left_x, right_x, left_y, right_y = train_test_split(real_x, real_y, test_size=bt_split,
                                                                             random_state=int(bootstrap),
@@ -276,8 +278,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     if sum(ind_src) > 0:
                         real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
                         if randomize:
-                            real_x = np.random.shuffle(real_x)
-                            real_y = np.random.shuffle(real_y)
+                            np.random.shuffle(real_x)
+                            np.random.shuffle(real_y)
                         layers[ilayer, real_x, real_y] += 1.0
                         trimmed_labels.append(labels[ilabel])
                         ilayer += 1

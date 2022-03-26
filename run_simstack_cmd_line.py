@@ -56,7 +56,7 @@ def main():
     if len(sys.argv) > 1:
         param_file_path = sys.argv[1]
     else:
-        param_file_path = os.path.join('config', 'cosmos2020.ini')
+        param_file_path = os.path.join('config', 'cosmos2020_null_test.ini')
 
     # Instantiate SIMSTACK object
     simstack_object = SimstackWrapper(param_file_path, save_automatically=False,

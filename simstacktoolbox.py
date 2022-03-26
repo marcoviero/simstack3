@@ -28,13 +28,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
     def __init__(self):
         super().__init__()
 
-    #def repopulate_self(self, imported_object):
-
-    #    dict_list = dir(imported_object)
-    #    for i in dict_list:
-    #        if '__' not in i:
-    #            setattr(self, i, getattr(imported_object, i))
-
     def combine_objects(self, second_object):
 
         wavelength_keys = list(self.results_dict['band_results_dict'].keys())
@@ -74,7 +67,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         #dist_suffix = "_".join([str(len(dist_bins)-1), 'redshift_bins'])
         foreground_suffix = ''
         at_once_suffix = 'layers'
-        catalog_suffix = ''
         bootstrap_suffix = ''
         stellar_mass_suffix = ''
         shuffle_suffix = ''
@@ -87,10 +79,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'stack_all_z_at_once' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['stack_all_z_at_once']:
                 at_once_suffix = 'atonce'
-        #if 'farmer' in self.config_dict['catalog']['file'].lower():
-        #    catalog_suffix = 'farmer'
-        #elif 'classic' in self.config_dict['catalog']['file'].lower():
-        #    catalog_suffix = 'classic'
         if 'bootstrap' in self.config_dict['general']['error_estimator']:
             if self.config_dict['general']['error_estimator']['bootstrap']['iterations']:
                 first_boot = self.config_dict['general']['error_estimator']['bootstrap']['initial_bootstrap']
@@ -106,7 +94,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         else:
             longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
                                  at_once_suffix, bootstrap_suffix, shuffle_suffix])
-        pdb.set_trace()
+        #pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname
 

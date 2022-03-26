@@ -117,7 +117,7 @@ class SimstackPlots(SimstackToolbox):
             for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                 zhi = float(zlab.split('_')[-1])
                 # print(zhi, zbins[izb])
-                if zhi > zbins[izb]:
+                if zhi >= zbins[izb]:
                     # pdb.set_trace()
                     nuInuzL += nuInuz
                     zlabel = "-".join([str(zbins[izb - 1]), str(zbins[izb])])
@@ -132,8 +132,8 @@ class SimstackPlots(SimstackToolbox):
                 else:
                     nuInuz += np.sum(nuInu[:, iz, :, ip], axis=1)
 
-            zlabel = "z < {0:.1f}".format(zbins[izb])
-            axs[0].plot(wvs, nuInuzL + nuInuz, ls[ip], label=zlabel)
+            #zlabel = "z < {0:.1f}".format(zbins[izb-1])
+            #axs[0].plot(wvs, nuInuzL + nuInuz, ls[ip], label=zlabel)
 
         axs[0].set_title('CIB by Redshift Contribution')
         axs[0].set_xlabel('Observed Wavelength [um]')
@@ -846,7 +846,7 @@ class SimstackPlots(SimstackToolbox):
                             else:
                                 axs[ip, iwv].set_xlabel('Redshift')
                             if not iwv:
-                                axs[ip, iwv].set_ylabel('Flux Density (Jy)')
+                                axs[ip, iwv].set_ylabel('Flux Density (mJy beam^-1)')
                             axs[ip, iwv].set_yscale('log')
                             # axs[ip, iwv].set_xlim([0., 8])
                             axs[ip, iwv].set_ylim([1e-3, 5e1])
@@ -862,7 +862,7 @@ class SimstackPlots(SimstackToolbox):
                             else:
                                 axs[ip].set_xlabel('Redshift')
                             if not iwv:
-                                axs[ip].set_ylabel('Flux Density (Jy)')
+                                axs[ip].set_ylabel('Flux Density (mJy beam^-1)')
                             axs[ip].set_yscale('log')
                             # axs[ip].set_xlim([0., 8])
                             axs[ip].set_ylim([1e-3, 5e1])
@@ -931,7 +931,11 @@ class SimstackPlots(SimstackToolbox):
                         axs[ip].set_ylabel('LIR (M_sun)')
                         axs[ip].set_xlabel('Redshift')
                         axs[ip].set_ylim([9, 13.5])
-                        axs[ip].set_title(plab)
+                        if ip:
+                            title_label = 'Star-Forming'
+                        else:
+                            title_label = 'Quiescent'
+                        axs[ip].set_title(title_label)
                 else:
                     axs.scatter(z_data_array, sed_lir_vs_z_array[:, im])
                     axs.plot(z_data_array, sed_lir_vs_z_array[:, im], label=mlab)
