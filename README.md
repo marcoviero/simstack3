@@ -1,16 +1,21 @@
 # simstack3
 Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.
 
+
+If you are here for Viero et al. 2022, **The Early Universe was Dust-Rich and Extremely Hot**, the code you will need to reproduce the result is contained in this repository.  
+Find instructions and links to data products (e.g., maps, catalog, cosmos2020.ini) [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
+
 For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract).
-<!---
-If you've arrived via the newly published Viero & Moncelsi 2022, welcome, all code to reproduce the results is contained in this repository.  
-Find data products (e.g., maps, catalog, cosmos2020.ini) [here](https://sites.astro.caltech.edu/viero/simstack/cosmos/).
+
+<!---If you've arrived via the newly published Viero et al. 2022 **The Early Universe was Dust-Rich and Extremely Hot**, welcome, all code to reproduce the results is contained in this repository.  
+Find data products (e.g., maps, catalog, cosmos2020.ini) [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
 --->
+
 Improvements on the original simstack code include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
 
 This stacking algorithm is separated into two distinct parts:
 1. Performing the stack and saving the results (this can take a long time, so better to limit the number of times you do this!)  
-2. Importing the saved results, and plotting them.  
+2. Importing the stacking results saving in step 1, analyzing, and plotting them.  
 
 This has been tested on Windows and Mac. I've gone to great pains to make this simple to use.  Reach out if you encounter problems.  
 
@@ -60,9 +65,10 @@ We use uvista.ini as an example of the format. The configuration file has the fo
 - stack_all_z_at_once: (default True) True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
 - add_background: (default True) Adds an additional layer, a background of all 1's, to the simultaneous stack.
 - crop_circles: (default True) draw circles around each source in each layer and flatten, keeping only pixels in fit.
-> error_estimator = {"bootstrap": {"init": 1, "iterations": 0}, "write_simmaps": 0}
-- bootstrap: Errors derived via. bootstrap method.  Layer parameters are named incrementaly, beginning with "init", which also happens to define the seed for the random shuffling, so that the bootstrap is identical from band to band. 
+> error_estimator = {"bootstrap": {"initial_bootstrap": 1, "iterations": 150}, "write_simmaps": 0, "randomize": 0}
+- bootstrap: Errors derived via. bootstrap method.  Layer parameters are named incrimentaly, beginning with "initial_bootstrap", which also happens to define the seed for the random shuffling, so that the bootstrap is identical from band to band. 
 - write_simmaps: Write simulated image, e.g. each layer summed together, at each wavelength.
+- randomize: for null-testing purposes, will implement np.shuffle(x,y) when building the layers.
 > cosmology = Planck18
 - Options are: Planck15, Planck18
 
@@ -103,15 +109,15 @@ We use uvista.ini as an example of the format. The configuration file has the fo
 ### Error bars
 The preferred method for generating error bars with SIMSTACK is via the "bootstrap".  
 Unlike a traditional bootstrap, which draws from the original sample (with replacement, i.e., the same source can be drawn multiple times) 
-SIMSTACK splits the samples in each bin 80/20, and stacks them simultaneously.  This is keeping with the 
+SIMSTACK splits each bin in two, with a size ratio of 80:20, and stacks them simultaneously.  This is keeping with the 
 motivation behind SIMSTACK in the first place, that correlated sources will bias the measurement, so all sources that generate signal must 
 be stacked together.  
 Note, this slows down the calculation considerably.  If you originally had 50 bins (e.g., 5 redshift, 5 stellar mass, 2 types), resulting in 
 stacking 50 layers (51 if you include background), the bootstrap calculation is 100 bins (101 with background), which requires a lot of RAM!
 If this is a problem you have two options:
-1. Stack in Redshift Layers
+1. Stack in Redshift Layers;
 2. Split the sample into redshift chunks, e.g., bins z=[0,1,2] and z=[2,3,4] in each chunk, and combine the results afterward.  
-See "Combining Results" for instructions on how to do this.  
+See ["Merging Results"](https://github.com/marcoviero/simstack3/blob/main/notebooks/2_merge_and_save_pickles.ipynb) for instructions on how to do this.  
 
 ### Running SIMSTACK
 You can run the code in two ways, 
@@ -151,68 +157,57 @@ And that's it.  Results will be saved in folder defined in config.ini file.
 ### Admiring your Results
 Stacking was successful! Great, now what?  
 
-Results are stored in a *pickle*, in the PICKLEsPATH/simstack/stacked_flux_densities/shortname (e.g., on my computer that would be D:\pickles\simstack\stacked_flux_densities\uVista_DR2_example\uVista_DR2_example.pkl)
+Results are stored in a *pickle*, in the PICKLESPATH/simstack/stacked_flux_densities/shortname (e.g., on my computer that would be D:\pickles\simstack\stacked_flux_densities\uVista_DR2_example\uVista_DR2_example.pkl)
 
-Inside the pickle is an object containing raw stacked flux densities (in Jy) and errors, and all data used to estimate them, and are accessed via python dictionaries:
+These are raw results (i.e., initially *results_dict* is empty) and need to be passed into *SimstackResults*, in order to apply any of the cosmology estimators on them. E.g.;
+- simstack_object = SimstackResults(simstack_object)
+
+Similary, pass object into *SimstackPlots* in order to plot the estimated results, e.g.;
+- simstack_object = SimstackPlots(simstack_object)
+
+The reason for this extra step is because the **SimstackResults** Class, which plots fluxes and estimates values like SEDs and LIRs, will be constantly improving, while the original stacked fluxes never change, so should only need to be estimated once.  
+
+Inside the object containing raw stacked flux densities (in Jy) and errors, and all data used to estimate them, and are accessed via python dictionaries:
 - simstack_object.config_dict
 - simstack_object.maps_dict
 - simstack_object.catalog_dict
 - simstack_object.results_dict
 
-However, initially *results_dict* is empty; to populate the results_dict requires 
-1. from simstackresults import SimstackResults
-2. simstack_object = import_saved_pickles(path_file)
-3. simstack_object.results_dict
-
-The reason for this extra step is because the **SimstackResults** Class, which plots fluxes and estimates values like SEDs and LIRs, will be constantly improving, while the original stacked fluxes never change so should only need to be estimated once.  
-
 #### Inside the results_dict
-Like a Russian doll, there are many layers to the results dict.  The first layer contains
-- maps_dict: which contains dictionaries for each wavelength stacked, each of which contains
-  - results_df: this is where the fluxes and errors are stored for "easy" access. 
-    -flux_df: depending on number of ways catalog is split (i.e., just stellar mass and redshift, or star-forming/quiescent too?)
-      -split_params: keys are stellar_mass labels
-        -stellar_mass_label: pandas DataFrame where index is redshift and column is flux
-    -error_df - same structure as flux_df
-Other layers inside maps_dict are the raw format of the stacked fluxes, not as useful as the results_df, but summarized here:
-  - wavelength: the wavelength in microns
-  - redshift: key is redshift labels, values are:
-    - flux_density: contains redshift keys
-      - redshift_key: contains fluxes
-      - population_key: contains fluxes
-    - std_error
-      - redshift_key: contains errors
-      - population_key: contains errors
-  - stellar_mass: key is stellar mass labels
-    - flux_density
-    - std_error
-    - redshift
-- SED_df (will only be calculated is stacking was more than one wavelength, and ideally many more than two)
-  - SED: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
-    - contains keys of split_param labels (e.g., 'split_params_0')
-      - contains keys of stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
-        - contains Parameter objects which are the result of fitting fast_sed (located in SimstackToolbox)
-  - LIR
-    - contains keys of split_param labels (e.g., 'split_params_0')
-      - contains keys of stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
-        - contains infrared luminosity estimates (L_sun estimated from 8-1000um) 
-  - wavelengths: contains list of wavelengths corresponding to SED
-  - flux_density: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
-    - contains keys of split_param labels (e.g., 'split_params_0')
-      - contains pandas DataFrames where index is redshift and columns are flux densities organized by stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
-  - std_error: contains keys of redshift labels (e.g., 'redshift_0.01_0.5')
-    - contains keys of split_param labels (e.g., 'split_params_0')
-      - contains pandas DataFrames where index is redshift and columns are flux densities organized by stellar_mass labels (e.g., 'stellar_mass_9.5_10.0')
-    
-So for example, if you want flux densities of your stack at redshift 0.5-1.0 and star-forming galaxies are split_params_1, look at the pandas table stored in
+There are many layers to the results_dict, but once you understand the labeling format, it is pretty intuitive.
+All bins have a unique id_label = '__'.join([zlabel,mlabel,plabel]).  Typically, but not necessarily, they look like:
+- zlabel = redshift_0.5_1.0
+- mlabel = stellar_mass_10.5_11.0
+- plabel = split_label_1
 
-simstack_object.results_dict['SED_df']['flux_density']['redshift_0.5_1.0']['split_params_1']
+The results_dict contains:
+- 'band_results_dict',  contains keys
+  - ['mips_24', 'pacs_green', 'pacs_red', 'spire_psw', 'spire_pmw', 'spire_plw', 'scuba_850'], each containing the single band result and bootstraps
+    - ['stacked_flux_densities', 'bootstrap_flux_densities_1', 'bootstrap_flux_densities_2', ..., 'raw_fluxes_dict'], each containing the result for each bin (or id_label)
+      - ['redshift_0p01_0p5__stellar_mass_9p5_10p0__split_params_0', 'redshift_0p01_0p5__stellar_mass_9p5_10p0__split_params_0__bootstrap2', ...]
+- 'sed_bootstrap_results_dict', contains processed results from bootstrap, i.e.;
+  - ['wavelengths', 'z_median', 'm_median', 'ngals', 'sed_fluxes_dict', 'std_fluxes_dict', 'sed_bootstrap_fluxes_dict'], where
+    - 'sed_fluxes_dict', and 'std_fluxes_dict' contain sed fluxes and errors, by bin, i.e.;
+      - ['redshift_0.01_0.5__stellar_mass_9.5_10.0__split_params_0', 'redshift_0.01_0.5__stellar_mass_9.5_10.0__split_params_1', ...]
+      - 
+    - 'sed_bootstrap_fluxes_dict' contains all 150 (or whatever number of bootstraps) by bin, i.e.,;
+      - ['redshift_0.01_0.5__stellar_mass_9.5_10.0__split_params_0', 'redshift_0.01_0.5__stellar_mass_9.5_10.0__split_params_1', ...]
+    - 'z_median', 'm_median', and 'ngals' are also accessed by id_label, e.g.,
+      - simstack_object.results_dict['sed_bootstrap_results_dict']['z_median'][id_label] is 2.245
+
+By nested looping through the bins, results you would access data with the id_label, e.g.;
 
 #### Visualizing results
 
 Existing plots so far are:
-simstack_object.plot_flux_densities()
-simstack_object.plot_seds()
-simstack_object.plot_lir_vs_z()
+- simstack_object.plot_flux_densities()
+- simstack_object.plot_seds()
+- simstack_object.plot_lir_vs_z()
+- simstack_object.plot_mcmc_seds(flat_samples_dict, show_qt=show_qt, bootstrap_dict=None, errors=('25', '75'),save_path=fig_path,save_filename=fig_filename)
+- simstack_object.plot_total_sfrd(total_sfrd_dict, save_path=fig_path, save_filename=fig_filename)
+- simstack_object.plot_rest_frame_temperature(lir_dict, ylog=False, save_path=fig_path,save_filename=fig_filename)
+- simstack_object.plot_star_forming_main_sequence(lir_dict, ylim=[5e-1, 5e3])
+- simstack_object.plot_cib(cib_dict)
+- simstack_object.plot_cib_layers(cib_dict, show_total=True)
 
-See example_plot_results.ipynb for importing stacking pickles, parsing results, and plotting them. 
+See (estimate_and_save_values)[notebooks/4_estimate_and_save_values.ipynb] and (load_and_plot)[notebooks/5_load_and_plot.ipynb] for importing stacking pickles, parsing results, and plotting them. 

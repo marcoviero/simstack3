@@ -945,7 +945,7 @@ class SimstackPlots(SimstackToolbox):
         else:
             print("Skipping SED plotting because only single wavelength measured.")
 
-    def plot_rest_frame_temperature(self, lir_in, xlim=None, ylim=[1, 100], xlog=False, ylog=True,
+    def plot_rest_frame_temperature(self, lir_in, xlim=[0, 10], ylim=[2e1, 140], xlog=False, ylog=True,
                                     print_values=False,  show_fit=True, show_cmb=False, save_path=None,
                                     not_flat_prior=None, save_filename="Tdust.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
