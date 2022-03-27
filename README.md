@@ -6,9 +6,9 @@ Instructions in the form of Jupyter Notebooks, and links to the data products ne
 Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.  For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract). <br>
 Improvements on the original simstack code include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
 
-This stacking algorithm is separated into two distinct parts:
-1. Performing the stack and saving the results (this can take a long time, so better to limit the number of times you do this!)  
-2. Importing the stacking results saving in step 1, analyzing, and plotting them.  
+SIMSTACK3 is separated into two distinct parts:
+1. Performing the stack and saving the results (this can take a long time, so better to limit the number of times you do this)  
+2. Importing the stacking results (estimated and saved in step 1), analyzing, and plotting them.  
 
 This has been tested on Windows and Mac. I've gone to great pains to make this simple to use.  Reach out if you encounter problems.  
 
