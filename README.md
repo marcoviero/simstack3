@@ -1,16 +1,9 @@
 # simstack3
-Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.
 
+If you are here for **The Early Universe was Dust-Rich and Extremely Hot**, (Viero et al. 2022) the Python code you will need to reproduce the result is contained in this repository.  
+Instructions in the form of Jupyter Notebooks, and links to the data products needed (e.g., maps, catalog, config file) can be found [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
 
-If you are here for Viero et al. 2022, **The Early Universe was Dust-Rich and Extremely Hot**, the code you will need to reproduce the result is contained in this repository.  
-Find instructions and links to data products (e.g., maps, catalog, cosmos2020.ini) [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
-
-For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract).
-
-<!---If you've arrived via the newly published Viero et al. 2022 **The Early Universe was Dust-Rich and Extremely Hot**, welcome, all code to reproduce the results is contained in this repository.  
-Find data products (e.g., maps, catalog, cosmos2020.ini) [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
---->
-
+Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.  For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract). <br>
 Improvements on the original simstack code include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
 
 This stacking algorithm is separated into two distinct parts:
