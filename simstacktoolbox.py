@@ -279,6 +279,47 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                             array_out[iz, im, ip] = input_dict[label]
         return array_out
 
+    def get_80_20_dict(self):
+        ''' Get bootstrap flux densities of both the 80 and 20% bins'''
+        bin_keys = list(self.config_dict['parameter_names'].keys())
+        ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
+        bands = list(self.results_dict['band_results_dict'].keys())
+        nboots = self.config_dict['general']['error_estimator']['bootstrap']['iterations']
+
+        bootstrap_dict = {}
+        outliers_dict = {}
+
+        for iwv in bands:
+            bootstrap_matrix = np.zeros([nboots, *ds])
+            outliers_matrix = np.zeros([nboots, *ds])
+            for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
+                for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
+                    for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
+                        id_label = "__".join([zlab, mlab, plab])
+                        label = "__".join([zlab, mlab, plab]).replace('.', 'p')
+                        for ib in range(nboots):
+                            blab = 'bootstrap_flux_densities_{0:0.0f}'.format(ib + 1)
+                            if label in self.results_dict['band_results_dict'][iwv][blab]:
+                                bootstrap_matrix[ib, iz, im, ip] = self.results_dict['band_results_dict'][iwv][blab][
+                                    label].value
+                                outliers_matrix[ib, iz, im, ip] = self.results_dict['band_results_dict'][iwv][blab][
+                                    label + '__bootstrap2'].value
+
+            bootstrap_dict[iwv] = bootstrap_matrix
+            outliers_dict[iwv] = outliers_matrix
+
+        bootstrap_full = np.zeros([len(bands), *np.shape(bootstrap_dict[bands[0]])])
+        outliers_full = np.zeros([len(bands), *np.shape(bootstrap_dict[bands[0]])])
+
+        for iband, band in enumerate(bands):
+            bootstrap_full[iband] = bootstrap_dict[band]
+            outliers_full[iband] = outliers_dict[band]
+
+        return_dict = {'bootstrap_dict': bootstrap_dict, 'outliers_dict': outliers_dict,
+                       'bootstrap_array': bootstrap_full, 'outliers_array': outliers_full}
+
+        return return_dict
+
     def get_fast_sed_dict(self, sed_bootstrap_dict):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         x = sed_bootstrap_dict['wavelengths']
