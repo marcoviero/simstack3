@@ -825,7 +825,7 @@ class SimstackPlots(SimstackToolbox):
                     axs[iz].set_xlim([10, 1000])
                     axs[iz].set_ylim([1e-5, 5e-1])
 
-    def plot_flux_densities(self, ylog=True, ylim=[[1e-3, 5e1]]):
+    def plot_flux_densities(self, ylog=True, ylim=[1e-3, 5e1]):
         wv_keys = list(self.results_dict['band_results_dict'].keys())
         wlen = len(wv_keys)
         if len(self.config_dict['parameter_names']) == 3:
