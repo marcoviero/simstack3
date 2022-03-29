@@ -756,24 +756,30 @@ class SimstackPlots(SimstackToolbox):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         colors = ['y', 'c', 'b', 'r', 'g']
         seds = self.make_array_from_dict(sed_results_dict['sed_fluxes_dict'],
-                                    sed_results_dict['wavelengths'])
+                                         sed_results_dict['wavelengths'])
         stds = self.make_array_from_dict(sed_results_dict['std_fluxes_dict'],
-                                    sed_results_dict['wavelengths'])
+                                         sed_results_dict['wavelengths'])
         graybodies = self.get_fast_sed_dict(sed_results_dict)
         wvs = sed_results_dict['wavelengths']
 
         zlen = len(self.config_dict['parameter_names'][bin_keys[0]])
+        plen = len(self.config_dict['parameter_names'][bin_keys[2]])
+        width_ratios = [i for i in np.ones(zlen)]
+        gs = gridspec.GridSpec(plen, zlen, width_ratios=width_ratios,
+                               wspace=0.0, hspace=0.0, top=0.95, bottom=0.05, left=0.17, right=0.845)
+        fig = plt.figure(figsize=(4 * zlen, 10))
+
         if len(self.config_dict['parameter_names']) == 3:
-            plen = len(self.config_dict['parameter_names'][bin_keys[2]])
-            fig, axs = plt.subplots(plen, zlen, figsize=(36, 10))
             for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                 zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                         id_label = "__".join([zlab, mlab, plab])
 
-                        axs[ip, iz].scatter(wvs, seds[:, iz, im, ip], color=colors[im])
-                        axs[ip, iz].errorbar(wvs, seds[:, iz, im, ip], stds[:, iz, im, ip], 0, 'none', color=colors[im])
+                        ax = plt.subplot(gs[ip, iz])
+
+                        ax.scatter(wvs, seds[:, iz, im, ip], color=colors[im])
+                        ax.errorbar(wvs, seds[:, iz, im, ip], stds[:, iz, im, ip], 0, 'none', color=colors[im])
 
                         LIR = graybodies['lir'][id_label]
                         sed_params = graybodies['sed_params'][id_label]
@@ -781,27 +787,38 @@ class SimstackPlots(SimstackToolbox):
                         T_rf = T_obs * (1 + zmid)
                         wv_array = graybodies['wv_array']
                         sed_array = graybodies['graybody'][id_label]
-
-                        line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
-                                      "LIR={:.1f}".format(np.log10(LIR))]
-                        axs[ip, iz].plot(wv_array, sed_array, label=line_label, color=colors[im])
-                        axs[ip, iz].legend(loc='upper right')
+                        line_label = "Trf={:.1f}".format(T_rf)
+                        ax.plot(wv_array, sed_array, label=line_label, color=colors[im])
+                        ax.legend(loc='upper right')
 
                         if not ip:
-                            axs[ip, iz].set_title(zlab)
-                        axs[ip, iz].set_xscale('log')
-                        axs[ip, iz].set_yscale('log')
-                        axs[ip, iz].set_xlim([10, 1000])
-                        axs[ip, iz].set_ylim([1e-5, 5e-1])
-
+                            ax.set_title(zlab)
+                        else:
+                            ax.set_xlabel('Wavelength')
+                        if not iz:
+                            ax.set_ylabel('flux density')
+                        ax.set_xscale('log')
+                        ax.set_yscale('log')
+                        ax.set_xlim([10, 1000])
+                        ax.set_ylim([1e-5, 5e-1])
+                        if iz:
+                            ax.set_yticklabels([])
+                        if iz == zlen - 1:
+                            ax.yaxis.set_label_position("right")
+                            if ip:
+                                gal_type = 'Star-Forming'
+                            else:
+                                gal_type = 'Quiescent'
+                            ax.set_ylabel(gal_type)
         else:
-            fig, axs = plt.subplots(1, zlen, figsize=(36, 10))
             for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                 zmid = 0.5 * np.sum([float(i) for i in zlab.split('_')[-2:]])
                 for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                     id_label = "__".join([zlab, mlab])
 
-                    axs[iz].scatter(wvs, seds[:, iz, im],)
+                    ax = plt.subplot(gs[0, iz])
+
+                    ax.scatter(wvs, seds[:, iz, im], )
 
                     LIR = graybodies['lir'][id_label]
                     sed_params = graybodies['sed_params'][id_label]
@@ -810,20 +827,23 @@ class SimstackPlots(SimstackToolbox):
                     wv_array = graybodies['wv_array']
                     sed_array = graybodies['graybody'][id_label]
 
-                    line_label = ['-'.join(mlab.split('_')[-2:]), "Trf={:.1f}".format(T_rf),
-                                  "LIR={:.1f}".format(np.log10(LIR))]
+                    line_label = "LIR={0:.1f}, Trf={1:.1f}".format(np.log10(LIR), T_rf)
                     if LIR > 0:
-                        axs[iz].plot(wv_array, sed_array[0], label=line_label)
-                        axs[iz].legend(loc='upper right')
+                        ax.plot(wv_array, sed_array[0], label=line_label)
+                        ax.legend(loc='upper right')
                     else:
-                        axs[iz].plot(wv_array, sed_array[0])
+                        ax.plot(wv_array, sed_array[0])
 
-                    if not im:
-                        axs[iz].set_title(zlab)
-                    axs[iz].set_xscale('log')
-                    axs[iz].set_yscale('log')
-                    axs[iz].set_xlim([10, 1000])
-                    axs[iz].set_ylim([1e-5, 5e-1])
+                    axs[iz].set_title(zlab)
+                    ax.set_xlabel('Wavelength')
+                    if not iz:
+                        ax.set_ylabel('flux density')
+                    ax.set_xscale('log')
+                    ax.set_yscale('log')
+                    ax.set_xlim([10, 1000])
+                    ax.set_ylim([1e-5, 5e-1])
+                    if iz:
+                        ax.set_yticklabels([])
 
     def plot_flux_densities(self, ylog=True, ylim=[1e-3, 5e1]):
         wv_keys = list(self.results_dict['band_results_dict'].keys())
