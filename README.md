@@ -38,14 +38,13 @@ This terminal is where you will run the python code (or open a Jupyter window.) 
 
 ### Required Packages
 Within the simstack environment (i.e., after **conda activate simstack**), install:
-- matplotlib (> conda install matplotlib)
-- seaborn (> conda install seaborn)
-- numpy (> conda install numpy)
-- pandas (> conda install pandas)
-- astropy (> conda install astropy)
-- lmfit (> conda install -c conda-forge lmfit)
-- sklearn (> conda install scikit-learn)
-- emcee (> conda install emcee)  
+- matplotlib (> conda install matplotlib=3.5.1)
+- numpy (> conda install numpy=1.21.2)
+- pandas (> conda install pandas=1.4.1)
+- astropy (> conda install astropy=5.0.2)
+- lmfit (> conda install -c conda-forge lmfit=1.0.3)
+- sklearn (> conda install scikit-learn=1.0.2)
+- emcee (> conda install -c conda-forge emcee=3.1.1)  
 - jupyterlab, if you want to use notebooks
 
 ## Usage
