@@ -45,6 +45,7 @@ Within the simstack environment (i.e., after **conda activate simstack**), insta
 - lmfit (> conda install -c conda-forge lmfit=1.0.3)
 - sklearn (> conda install scikit-learn=1.0.2)
 - emcee (> conda install -c conda-forge emcee=3.1.1)  
+- corner (> conda install -c conda-forge corner=2.2.1)
 - jupyterlab, if you want to use notebooks
 
 ## Usage
