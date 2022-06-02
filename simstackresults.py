@@ -1,8 +1,6 @@
 import pdb
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from simstacktoolbox import SimstackToolbox
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 
@@ -17,7 +15,8 @@ class SimstackResults(SimstackToolbox):
 				setattr(self, i, getattr(SimstackResultsObject, i))
 
 	def parse_results(self, beta_rj=1.8, catalog_object=None,
-					  estimate_mcmcs=False, mcmc_iterations=2500, mcmc_discard=25, plot_seds=False):
+					  estimate_mcmcs=False, mcmc_iterations=2500, mcmc_discard=25,
+					  atonce_object=None, plot_seds=False):
 
 		# Sort into fluxes for easy plotting
 		fluxes_dict = self.parse_fluxes()
@@ -28,7 +27,7 @@ class SimstackResults(SimstackToolbox):
 			self.parse_seds(fluxes_dict, beta_rj=beta_rj)
 			self.results_dict['bootstrap_results_dict'] = self.populate_results_dict()
 			self.results_dict['sed_bootstrap_results_dict'] = \
-				self.populate_sed_dict(catalog_object.catalog_dict['tables'])
+				self.populate_sed_dict(catalog_object.catalog_dict['tables'], atonce_object=atonce_object)
 
 			if estimate_mcmcs:
 				self.results_dict['lir_dict'] = self.loop_mcmc_sed_estimator(self.results_dict['bootstrap_results_dict'],
@@ -91,10 +90,10 @@ class SimstackResults(SimstackToolbox):
 									#flux_array[iboot, z, i, j] = results_object[label].value
 									if label+'__bootstrap2' in results_object:
 										outlier_array[iboot, z, i, j] = results_object[label].value
-										#flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
-										flux_array[iboot, z, i, j] = np.sqrt(
-											0.5 * results_object[label + '__bootstrap2'].value**2 +
-											0.5 * results_object[label].value ** 2)
+										flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+										#flux_array[iboot, z, i, j] = np.sqrt(
+										#	0.5 * results_object[label + '__bootstrap2'].value**2 +
+										#	0.5 * results_object[label].value ** 2)
 										#print(label)
 										#pdb.set_trace()
 									else:
@@ -109,10 +108,10 @@ class SimstackResults(SimstackToolbox):
 								#flux_array[iboot, z, i] = results_object[label].value
 								if label + '__bootstrap2' in results_object:
 									outlier_array[iboot, z, i] = results_object[label].value
-									#flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
-									flux_array[iboot, z, i] = np.sqrt(
-										0.5 * results_object[label + '__bootstrap2'].value ** 2 +
-										0.5 * results_object[label].value ** 2)
+									flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
+									#flux_array[iboot, z, i] = np.sqrt(
+									#	0.5 * results_object[label + '__bootstrap2'].value ** 2 +
+									#	0.5 * results_object[label].value ** 2)
 								else:
 									flux_array[iboot, z, i] = results_object[label].value
 
@@ -276,8 +275,8 @@ class SimstackResults(SimstackToolbox):
 				for ipop, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
 					id_label = "__".join([zlab, mlab, plab])
 					label = "__".join([zlab, mlab, plab]).replace(".", "p")
-					ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-							split_table.split_params == ipop)
+					ind_gals = (split_table[bin_keys[0]] == iz) & (split_table[bin_keys[1]] == im) & (
+							split_table[bin_keys[2]] == ipop)
 					ngals_dict[id_label] = np.sum(ind_gals)
 					z_median = np.median(full_table[id_distance][ind_gals])
 					m_median = np.median(full_table[id_secondary][ind_gals])
@@ -305,14 +304,15 @@ class SimstackResults(SimstackToolbox):
 											flux_dict[id_label][iwv] = \
 											self.results_dict['band_results_dict'][band_label][flux_label][label]
 								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
-									#boot_dict[id_label][iboot, iwv] = \
-									#	self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
-									boot_dict[id_label][iboot, iwv] = np.sqrt(
-										0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']**2 +
-										0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label] ** 2)
+									boot_dict[id_label][iboot, iwv] = \
+										self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
+									#boot_dict[id_label][iboot, iwv] = np.sqrt(
+									#	0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']**2 +
+									#	0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label] ** 2)
 
 									error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
 
+		#pdb.set_trace()
 		return results_dict
 
 	def populate_results_dict(self, atonce_object=None):

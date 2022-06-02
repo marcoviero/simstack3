@@ -102,7 +102,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     labels.append("ones_background")
                 cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
                                                        crop_circles=crop_circles, add_background=add_background,
-                                                       bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize)
+                                                       bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize,
+                                                       write_fits_layers=write_simmaps)
                 for wv in cov_ss_out:
                     if wv not in self.results_dict['band_results_dict']:
                         self.results_dict['band_results_dict'][wv] = {}
@@ -122,7 +123,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 labels.append("ones_background")
             cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
                                                    crop_circles=crop_circles, add_background=add_background,
-                                                   bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize)
+                                                   bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize,
+                                                   write_fits_layers=write_simmaps)
 
             for wv in cov_ss_out:
                 if wv not in self.results_dict['band_results_dict']:
@@ -136,7 +138,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                    force_fwhm=None, randomize=False, write_fits_layers=False):
 
         cmap = map_dict['map'].copy()
-        cnoise = map_dict['noise'].copy()
+        if 'noise' in map_dict:
+            cnoise = map_dict['noise'].copy()
+        else:
+            cnoise = cmap * 0
         pix = map_dict['pixel_size']
         hd = map_dict['header']
         fwhm = map_dict['fwhm']
@@ -164,8 +169,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             nlists = ds
             llists = np.prod(nlists)
-
-        if np.sum(cnoise) == 0: cnoise = cmap * 0.0 + 1.0
 
         # STEP 1  - Make Layers Cube
         layers = np.zeros([llists, cms[0], cms[1]])
@@ -345,7 +348,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
                 name_layer = 'layer_'+str(umap)+'.fits'
-                pdb.set_trace()
+                #pdb.set_trace()
                 hdu = fits.PrimaryHDU(tmap, header=hd)
                 hdul = fits.HDUList([hdu])
                 hdul.writeto(os.path.join(path_layer, name_layer))
@@ -368,7 +371,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
     def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, force_fwhm=None, crop_circles=False,
-                             add_background=False, bootstrap=False, randomize=False):
+                             add_background=False, bootstrap=False, randomize=False, write_fits_layers=False):
 
         map_keys = list(self.maps_dict.keys())
         cov_ss_dict = {}
@@ -376,7 +379,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             map_dict = self.maps_dict[wv].copy()
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
                                         add_background=add_background, bootstrap=bootstrap, randomize=randomize,
-                                        force_fwhm=force_fwhm)
+                                        force_fwhm=force_fwhm, write_fits_layers=write_fits_layers)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])

@@ -77,7 +77,7 @@ class Skycatalogs:
 		if 'nuvrj' in split_type:
 			self.separate_sf_qt_nuvrj(split_dict, self.catalog_dict['tables']['full_table'], qg_zcut=qg_zcut)
 
-	def separate_by_label(self, split_dict, table, add_background=False):
+	def separate_by_label(self, split_dict, table, add_foreground=False):
 		parameter_names = {}
 		label_keys = list(split_dict.keys())
 		for key in label_keys:
@@ -112,8 +112,8 @@ class Skycatalogs:
 				else:
 					pn = "__".join([ipar, jpar])
 					self.catalog_dict['tables']['parameter_labels'].append(pn)
-		if add_background:
-			self.catalog_dict['tables']['parameter_labels'].append('background_layer')
+		if add_foreground:
+			self.catalog_dict['tables']['parameter_labels'].append('foreground_layer')
 
 		self.config_dict['parameter_names'] = parameter_names
 		#pdb.set_trace()

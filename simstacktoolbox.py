@@ -28,7 +28,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
     def __init__(self):
         super().__init__()
 
-    def combine_objects(self, second_object):
+    def combine_objects(self, second_object, merge_z=False):
 
         wavelength_keys = list(self.results_dict['band_results_dict'].keys())
         wavelength_check = list(second_object.results_dict['band_results_dict'].keys())
@@ -36,25 +36,30 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             "Can't combine these objects. Missing bands"
             pdb.set_trace()
 
-        label_dict = self.config_dict['parameter_names']
-        label_dict_hi = second_object.config_dict['parameter_names']
-        label_dict['redshift'].extend(label_dict_hi['redshift'])
-        self.config_dict['catalog']['distance_labels'].extend(second_object.config_dict['catalog']['distance_labels'])
-        self.config_dict['distance_bins']['redshift'].extend(second_object.config_dict['distance_bins']['redshift'])
-        self.config_dict['distance_bins']['redshift'] = np.unique(
-            self.config_dict['distance_bins']['redshift']).tolist()
+        if merge_z:
+            label_dict = self.config_dict['parameter_names']
+            label_dict_hi = second_object.config_dict['parameter_names']
+            label_dict['redshift'].extend(label_dict_hi['redshift'])
+            self.config_dict['catalog']['distance_labels'].extend(second_object.config_dict['catalog']['distance_labels'])
+            self.config_dict['distance_bins']['redshift'].extend(second_object.config_dict['distance_bins']['redshift'])
+            self.config_dict['distance_bins']['redshift'] = np.unique(
+                self.config_dict['distance_bins']['redshift']).tolist()
 
         for k, key in enumerate(wavelength_keys):
-            len_results_dict_keys = np.sum(
-                ['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
-            for iboot in np.arange(len_results_dict_keys):
-                if not iboot:
-                    boot_label = 'stacked_flux_densities'
-                else:
-                    boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
+            if merge_z:
+                len_results_dict_keys = np.sum(
+                    ['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
+                for iboot in np.arange(len_results_dict_keys):
+                    if not iboot:
+                        boot_label = 'stacked_flux_densities'
+                    else:
+                        boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
 
-                self.results_dict['band_results_dict'][key][boot_label].update(
-                    second_object.results_dict['band_results_dict'][key][boot_label])
+                    self.results_dict['band_results_dict'][key][boot_label].update(
+                        second_object.results_dict['band_results_dict'][key][boot_label])
+            else:
+                self.results_dict['band_results_dict'][key].update(
+                    second_object.results_dict['band_results_dict'][key])
 
     def construct_longname(self, basename):
         try:
@@ -450,27 +455,26 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
 
-    def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, redshiftin=0):
-        t_in = (10 ** (1.2 + 0.1 * redshiftin)) / (1+redshiftin)
-        a_in = -34.0
+    def fast_sed_fitter(self, wavelengths, fluxes, covar, betain=1.8, alphain=2.0, redshiftin=0, stellarmassin=None):
+        #t_in = (32.9 + 4.6 * (redshiftin - 2)) / (1 + redshiftin)
+        t_in = (23.8 + 2.7 * redshiftin + 0.9 * redshiftin ** 2) / (1 + redshiftin)
+        if stellarmassin is not None:
+            a_in = -47 - redshiftin*0.05 + 11 * (stellarmassin / 10)
+        else:
+            a_in = -35.0
         fit_params = Parameters()
         fit_params.add('A', value=a_in, vary=True)
-        #fit_params.add('T_observed', value=t_in, max=t_in*1.3, vary=True)
         fit_params.add('T_observed', value=t_in, vary=True)
         fit_params.add('beta', value=betain, vary=False)
-        fit_params.add('alpha', value=2.0, vary=False)
+        fit_params.add('alpha', value=alphain, vary=False)
 
-        # nu_in = c * 1.e6 / wavelengths
         fluxin = fluxes #[np.max([i, 1e-7]) for i in fluxes]
-        #pdb.set_trace()
         try:
             sed_params = minimize(self.find_sed_min, fit_params,
                                   args=(wavelengths,),
                                   kws={'fluxes': fluxin, 'covar': covar})
             m = sed_params.params
         except:
-            #pdb.set_trace()
-            #print('fucked!')
             m = fit_params
 
         return m
@@ -779,6 +783,87 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         mstar = ma[sfg] + mb[sfg] * z + mc[sfg] * z ** 2
 
         # P[0]=alpha, P[1]=M*, P[2]=phi*, P[3]=alpha_2, P[4]=M*_2, P[5]=phi*_2
+        P = np.array([aone, mstar, phione, atwo, mstar, phitwo])
+        return self.dschecter(Mass, P)
+
+    def davidzon_mass_function(self, z, Mass=np.linspace(9, 13, 100), sfg='sf'):
+        # sfg = 0  -  Quiescent
+        # sfg = 1  -  Star Forming
+        # sfg = 2  -  All
+
+        nz = np.shape(z)
+
+        # logMstar, a1, PhiStar1, a2, PhiStar2
+        # P[0]=alpha, P[1]=M*, P[2]=phi*, P[3]=alpha_2, P[4]=M*_2, P[5]=phi*_2
+        allg = {
+            '0.2_z_0.5': [-1.38, 10.78, 1.187, -0.43, 10.78, 1.92],
+            '0.5_z_0.8': [-1.36, 10.77, 1.070, 0.03, 10.77, 1.68],
+            '0.8_z_1.1': [-1.31, 10.56, 1.428, 0.51, 10.56, 2.19],
+            '1.1_z_1.5': [-1.28, 10.62, 1.069, 0.29, 10.62, 1.21],
+            '1.5_z_2.0': [-1.28, 10.51, 0.969, 0.82, 10.51, 0.64],
+            '2.0_z_2.5': [-1.57, 10.60, 0.295, 0.07, 10.60, 0.45],
+            '2.5_z_3.0': [-1.67, 10.59, 0.228, -0.08, 10.59, 0.21],
+            '3.0_z_3.5': [-1.76, 10.83, 0.090, np.nan, 10.83, np.nan],
+            '3.5_z_4.5': [-1.98, 11.10, 0.016, np.nan, 11.10, np.nan],
+            '4.5_z_5.5': [-2.11, 11.30, 0.003, np.nan, 11.30, np.nan]
+        }
+        sfg = {
+            '0.2_z_0.5': [-1.29, 10.26, 2.410, 1.10, 10.26, 1.30],
+            '0.5_z_0.8': [-1.32, 10.40, 1.661, 0.84, 10.40, 0.86],
+            '0.8_z_1.1': [-1.29, 10.35, 1.739, 0.81, 10.35, 0.95],
+            '1.1_z_1.5': [-1.21, 10.42, 1.542, 1.11, 10.42, 0.49],
+            '1.5_z_2.0': [-1.24, 10.40, 1.156, 0.90, 10.40, 0.46],
+            '2.0_z_2.5': [-1.50, 10.45, 0.441, 0.59, 10.45, 0.38],
+            '2.5_z_3.0': [-1.52, 10.39, 0.441, 1.05, 10.39, 0.13],
+            '3.0_z_3.5': [-1.78, 10.83, 0.086, np.nan, 10.83, np.nan],
+            '3.5_z_4.0': [-1.84, 10.77, 0.052, np.nan, 10.77, np.nan],
+            '4.0_z_6.0': [-2.12, 11.30, 0.003, np.nan, 11.30, np.nan]
+        }
+        allg = {
+            '0.2_z_0.5': [10.78, -1.38, 1.187, -0.43, 1.92],
+            '0.5_z_0.8': [10.77, -1.36, 1.070,  0.03, 1.68],
+            '0.8_z_1.1': [10.56, -1.31, 1.428,  0.51, 2.19],
+            '1.1_z_1.5': [10.62, -1.28, 1.069,  0.29, 1.21],
+            '1.5_z_2.0': [10.51, -1.28, 0.969,  0.82, 0.64],
+            '2.0_z_2.5': [10.60, -1.57, 0.295,  0.07, 0.45],
+            '2.5_z_3.0': [10.59, -1.67, 0.228, -0.08, 0.21],
+            '3.0_z_3.5': [10.83, -1.76, 0.090, np.nan, np.nan],
+            '3.5_z_4.5': [11.10, -1.98, 0.016, np.nan, np.nan],
+            '4.5_z_5.5': [11.30, -2.11, 0.003, np.nan, np.nan]
+        }
+        sfg = {
+            '0.2_z_0.5': [10.26, -1.29, 2.410,  1.10, 1.30],
+            '0.5_z_0.8': [10.40, -1.32, 1.661,  0.84, 0.86],
+            '0.8_z_1.1': [10.35, -1.29, 1.739,  0.81, 0.95],
+            '1.1_z_1.5': [10.42, -1.21, 1.542,  1.11, 0.49],
+            '1.5_z_2.0': [10.40, -1.24, 1.156,  0.90, 0.46],
+            '2.0_z_2.5': [10.45, -1.50, 0.441,  0.59, 0.38],
+            '2.5_z_3.0': [10.39, -1.52, 0.441,  1.05, 0.13],
+            '3.0_z_3.5': [10.83, -1.78, 0.086, np.nan, np.nan],
+            '3.5_z_4.0': [10.77, -1.84, 0.052, np.nan, np.nan],
+            '4.0_z_6.0': [11.30, -2.12, 0.003, np.nan, np.nan]
+        }
+        qg = {
+            '0.2_z_0.5': [10.83, -1.30, 0.098, -0.39, 1.58],
+            '0.5_z_0.8': [10.83, -1.46, 0.012, -0.21, 1.44],
+            '0.8_z_1.1': [10.75, -0.07, 1.724, np.nan, np.nan],
+            '1.1_z_1.5': [10.56,  0.53, 0.757, np.nan, np.nan],
+            '1.5_z_2.0': [10.54,  0.93, 0.251, np.nan, np.nan],
+            '2.0_z_2.5': [10.69,  0.17, 0.068, np.nan, np.nan],
+            '2.5_z_3.0': [10.24,  1.15, 0.028, np.nan, np.nan],
+            '3.0_z_3.5': [10.10,  1.15, 0.010, np.nan, np.nan],
+            '3.5_z_4.0': [10.10,  1.15, 0.004, np.nan, np.nan]
+        }
+        SMF = {'sf': sfg, 'qt': qg, 'all': allg}
+        smf = SMF[sfg][z]
+        aone = a1[sfg] + np.zeros(nz)
+        atwo = a2[sfg] + np.zeros(nz)
+        phione = 10 ** (p1a[sfg] + p1b[sfg] * z + p1c[sfg] * z ** 2)
+        phitwo = 10 ** (p2a[sfg] + p2b[sfg] * z + p2c[sfg] * z ** 2)
+        mstar = ma[sfg] + mb[sfg] * z + mc[sfg] * z ** 2
+
+        # P[0]=alpha, P[1]=M*, P[2]=phi*, P[3]=alpha_2, P[4]=M*_2, P[5]=phi*_2
+
         P = np.array([aone, mstar, phione, atwo, mstar, phitwo])
         return self.dschecter(Mass, P)
 

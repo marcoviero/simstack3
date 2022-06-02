@@ -366,7 +366,7 @@ class SimstackPlots(SimstackToolbox):
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
     def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'), fontsize=11.5,
-                       show_qt=False, save_path=None, save_filename="SEDs.pdf"):
+                       show_qt=False, show_A=True, save_path=None, save_filename="SEDs.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         wvs = mcmc_dict['wavelengths']
         wv_array = self.loggen(8, 1000, 100)
@@ -441,7 +441,10 @@ class SimstackPlots(SimstackToolbox):
                             M_mol = L_850A / a_nu_flux_to_mass
                             sfr = 35 * (M_mol / 1e10) ** (0.89) * ((1 + z_med[id_label]) / 3) ** (0.95)
 
-                            ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)),fontsize=fontsize)
+                            if show_A:
+                                ax.text(9.0e0, 8e1, "A_fit={0:0.1f}".format(mcmc_out[0][1]),fontsize=fontsize)
+                            else:
+                                ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)), fontsize=fontsize)
                             ax.text(9.0e0, 2.5e1, "SFR={0:.0f}Msun/yr".format(sfr[0]),fontsize=fontsize)
                             ax.text(9.0e0, 7.2e0, "Trf={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])),fontsize=fontsize)
                             ax.text(9.0e0, 2e0, "Ngals={0:0.0f}".format(ngals[id_label]),fontsize=fontsize)
@@ -503,7 +506,7 @@ class SimstackPlots(SimstackToolbox):
                             ax.set_ylim([1e-2, 5e2])
 
         fig.text(0.5, -0.0075, 'Observed Wavelength [micron]', ha='center')
-        fig.text(0.146, 0.5, 'Flux Density [Jy beam^-1]', va='center', rotation='vertical')
+        fig.text(0.146, 0.5, 'Flux Density [mJy beam^-1]', va='center', rotation='vertical')
         fig.text(0.8535, 0.5, 'log(Stellar Mass) [log(Msun)]', va='center', rotation='vertical')
 
         if save_path is not None:
@@ -638,7 +641,7 @@ class SimstackPlots(SimstackToolbox):
                         if iz:
                             ax.set_yticklabels([])
                         # else:
-                        #    ax.set_ylabel('Flux Density [Jy/beam]')
+                        #    ax.set_ylabel('Flux Density [mJy beam^-1]')
                         if ix != plen - 1:
                             ax.set_xticklabels([])
                         if iz == 0:
@@ -653,8 +656,8 @@ class SimstackPlots(SimstackToolbox):
                         ax.set_ylim([1e-2, 5e2])
                         # ax.set_xlabel('Wavelength [micron]')
         fig.text(0.5, 0.02, 'Observed Wavelength [micron]', ha='center')
-        # fig.text(0.15, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
-        fig.text(0.14, 0.5, 'Flux Density [Jy/beam]', va='center', rotation='vertical')
+        # fig.text(0.15, 0.5, 'Flux Density [mJy beam^-1]', va='center', rotation='vertical')
+        fig.text(0.14, 0.5, 'Flux Density [mJy beam^-1]', va='center', rotation='vertical')
 
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
@@ -904,7 +907,7 @@ class SimstackPlots(SimstackToolbox):
                     axs[iwv].set_title(wlab)
                     axs[iwv].set_xlabel('Redshift')
                     if not iwv:
-                        axs[iwv].set_ylabel('Flux Density (Jy)')
+                        axs[iwv].set_ylabel('Flux Density (mJy beam^-1)')
                     if ylog:
                         axs[iwv].set_yscale('log')
                         axs[iwv].set_ylim([1e-3, 5e1])

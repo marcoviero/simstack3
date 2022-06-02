@@ -1,18 +1,18 @@
 import pdb
-import os
-import shutil
-import logging
+#import os
+#import shutil
+#import logging
 import emcee
-import scipy
-from scipy.integrate import quad
+#import scipy
+#from scipy.integrate import quad
 from scipy import special
 import decimal
-import math
+#import math
 import numpy as np
-from astropy.io import fits
+#from astropy.io import fits
 from lmfit import Parameters, minimize, fit_report
-from scipy.ndimage.filters import gaussian_filter
-from scipy.optimize import curve_fit
+#from scipy.ndimage.filters import gaussian_filter
+#from scipy.optimize import curve_fit
 
 pi = 3.141592653589793
 L_sun = 3.839e26  # W
@@ -20,7 +20,6 @@ c = 299792458.0  # m/s
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
 a_nu_flux_to_mass = 6.7e19
-#alpha_850 = a_nu_flux_to_mass
 flux_to_specific_luminosity = 1.78  # 1e-23 #1.78e-13
 h = 6.62607004e-34  # m2 kg / s  #4.13e-15 #eV/s
 k = 1.38064852e-23  # m2 kg s-2 K-1 8.617e-5 #eV/K
@@ -111,7 +110,7 @@ class SimstackCosmologyEstimators:
 
     def log_prior(self, theta):
         A, T = theta
-        Amin = -42
+        Amin = -38  #42
         Amax = -33
         Tmin = 5
         Tmax = 32
@@ -123,8 +122,8 @@ class SimstackCosmologyEstimators:
 
     def log_prior_informative(self, theta, theta0):
         A, T = theta
-        A0, T0, sigma_A, sigma_T = theta0
-        Amin = -42
+        A0, T0, sigma_A, sigma_T = theta0  # theta0 = Ain, Tin, Aerr, Terr
+        Amin = -38  #42
         Amax = -33
         Tmin = 5
         Tmax = 32
@@ -137,6 +136,10 @@ class SimstackCosmologyEstimators:
             #     np.log(1.0/(np.sqrt(2*np.pi)*(10**sigma_A))) + np.log(1.0/(np.sqrt(2*np.pi)*sigma_T))
             lp = -0.5 * (np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
                  np.log(1.0/(np.sqrt(2*np.pi)*(sigma_T * error_infl) ** 2))
+            #lp = -0.5 * (np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
+            #     np.log(1.0 / (np.sqrt(2 * np.pi) * (sigma_T * error_infl) ** 2)) + \
+            #     -0.5 * (np.sum((A - A0) ** 2 / (sigma_A * error_infl) ** 2)) + \
+            #     np.log(1.0 / (np.sqrt(2 * np.pi) * (sigma_A * error_infl) ** 2))
             return lp
         return -np.inf
 
@@ -230,7 +233,7 @@ class SimstackCosmologyEstimators:
         return flat_samples
 
     def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=50,
-                                include_qt=True, slow=False, flat_prior=True, sigma_upper_limit=3):
+                                mips_penalty=1, include_qt=True, slow=False, flat_prior=True, sigma_upper_limit=3):
 
         id_distance = self.config_dict['catalog']['classification']['redshift']['id']
         id_secondary = self.config_dict['catalog']['classification']['stellar_mass']['id']
@@ -254,8 +257,8 @@ class SimstackCosmologyEstimators:
                 for ip, plab in enumerate(self.config_dict['parameter_names'][bin_keys[2]]):
                     if ip or include_qt:
                         id_label = "__".join([zlab, mlab, plab])
-                        ind_gals = (split_table.redshift == iz) & (split_table.stellar_mass == im) & (
-                                split_table.split_params == ip)
+                        ind_gals = (split_table[bin_keys[0]] == iz) & (split_table[bin_keys[1]] == im) & (
+                                split_table[bin_keys[2]] == ip)
                         y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
                         yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
                         y_dict[id_label] = y
@@ -295,9 +298,11 @@ class SimstackCosmologyEstimators:
                                 flat_prior_in = True
                         else:
                             flat_prior_in = flat_prior
-
+                        #print(m_median)
+                        #pdb.set_trace()
                         mcmc_dict[id_label] = self.estimate_mcmc_sed(sed_bootstrap_dict, id_label,
-                                                                     z_median=z_median,
+                                                                     z_median=z_median, m_median=m_median,
+                                                                     mips_penalty=mips_penalty,
                                                                      mcmc_iterations=mcmc_iterations,
                                                                      mcmc_discard=mcmc_discard,
                                                                      sigma_upper_limit=sigma_upper_limit,
@@ -305,34 +310,91 @@ class SimstackCosmologyEstimators:
 
         return return_dict
 
-    def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0,
+    def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0, m_median=0, mips_penalty='auto',
                           mcmc_iterations=500, mcmc_discard=5, sigma_upper_limit=3, slow=False, flat_prior=True):
 
         if not z_median:
             z_label = id_label.split('_')[1:3]
             z_median = np.mean([float(i) for i in z_label])
+        if not m_median:
+            m_label = id_label.split('_')[-6:-4]
+            m_median = np.mean([float(i) for i in m_label])
+
+        if mips_penalty == "auto":
+            if (z_median > 2.0) & (z_median < 2.5):
+                mips_penalty = 2.5
+            elif (z_median > 1.5) & (z_median < 2):
+                mips_penalty = 4
+            elif (z_median > 0.5) & (z_median < 3):
+                mips_penalty = 2
+            else:
+                mips_penalty = 1
 
         x = sed_bootstrap_dict['wavelengths']
         y = sed_bootstrap_dict['sed_fluxes_dict'][id_label]
-        yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+        #yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
+        yboot = sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label].copy()
+        yboot[:, 0] *= mips_penalty
+        yerr = np.cov(yboot, rowvar=False)
 
-        sed_params = self.fast_sed_fitter(x, y, yerr)
-        #t_forced = 32.9 + 4.6 * (z_median - 2)
-        #sed_forced_params = self.forced_sed_fitter(x, y, yerr, t_forced)
+        '''
+        sed_params = self.fast_sed_fitter(x, y, yerr, redshiftin=z_median, stellarmassin=m_median)
         Ain = sed_params['A'].value
         Aerr = sed_params['A'].stderr
         Tin = sed_params['T_observed'].value
         Terr = sed_params['T_observed'].stderr
-        if Terr is None or Terr > 0.1 * Tin:
-            #Tin = (10 ** (1.4 + 0.1 * z_median)) / (1 + z_median)
-            Tin = (32.9 + 4.6 * (z_median - 2)) / (1 + z_median)
-            Terr = np.sqrt(Tin)
-            Aerr = Ain
-        else:
-            Terr = np.min([np.max([Terr, 0.005 * Tin]), Tin])
+        Tmodel = (22.5 + 5.8 * z_median + 0.4 * z_median**2) / (1 + z_median)
+        #Tmodel = (23.8 + 2.7 * z_median + 0.9 * z_median**2) / (1 + z_median)
 
-        if id_label == 'redshift_4.0_5.0__stellar_mass_9.5_10.0__split_params_1':
-            Tin = (32.9 + 4.6 * (z_median - 2)) / (1 + z_median)
+        if Terr is None or abs(Tmodel-Tin) > 3 or Tin >= 22:
+            Tin = Tmodel
+            Terr = 0.1 * Tin
+            Ain = -35
+            Aerr = 1  # np.sqrt(abs(Ain))
+            if flat_prior:
+                print(id_label, ': No fit found, using T_0(z={1:0.1f}) = {0:0.1f}, A_0(z={1:0.1f}) = {2:0.1f}'.format(Tin, z_median, Ain))
+            else:
+                print(id_label, ': No fit found, using T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
+        else:
+            Terr = np.min([np.max([Terr, 0.001 * Tin]), Tin])
+            if flat_prior:
+                print(id_label, ': T_0(z={1:0.1f}) = {0:0.1f}, A_0(z={1:0.1f}) = {2:0.1f}'.format(Tin, z_median, Ain))
+            else:
+                print(id_label, ': T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
+        '''
+
+        Tmodel = (22.5 + 5.8 * z_median + 0.4 * z_median ** 2) / (1 + z_median)
+        Amodel = -47 - z_median*0.05 + 11 * (m_median / 10)
+        if np.isfinite(Tmodel):
+            Ain = Amodel
+            Aerr = 0.1  #0.25
+            Tin = Tmodel
+            Terr = 0.5  #1.0  #2.0
+        else:
+            Ain = -35
+            Aerr = 1
+            Tin = 10
+            Terr = 2
+        if flat_prior:
+            prior_suffix = 'init'
+        else:
+            prior_suffix = 'prior'
+        print(id_label, ': T_rf_{0}(z={3:0.1f}) = {1:0.1f}+-{2:0.2f}, A_{0}(z={3:0.1f}) = {4:0.1f}+-{5:0.2f}'.format(prior_suffix, Tin * (1+z_median), Terr, z_median, Ain, Aerr))
+
+        #if id_label == 'redshift_1.5_2.0__stellar_mass_9.5_10.0__split_params_1'
+        #if id_label == 'redshift_8.0_10.0__stellar_mass_10.0_10.5__split_params_1':
+        #    Ain = -35
+        #    Aerr = 0.5
+        #    Terr = 0.01 * Tin
+        #    print('Actually, T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
+
+        #if (id_label == 'redshift_4.0_5.0__stellar_mass_9.5_10.0__split_params_1') or \
+        #        (id_label == 'redshift_1.5_2.0__stellar_mass_9.5_10.0__split_params_1') or \
+        #        (id_label == 'redshift_2.0_2.5__stellar_mass_9.5_10.0__split_params_1') or \
+        #        (id_label == 'redshift_3.5_4.0__stellar_mass_10.0_10.5__split_params_1') or \
+        #        (id_label == 'redshift_6.0_8.0__stellar_mass_10.5_11.0__split_params_1') or \
+        #        (id_label == 'redshift_6.0_8.0__stellar_mass_11.0_12.0__split_params_1'):
+        #    Tin = (32.9 + 4.6 * (z_median - 2)) / (1 + z_median)
 
         theta0 = Ain, Tin, Aerr, Terr
 

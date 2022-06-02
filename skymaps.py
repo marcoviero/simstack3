@@ -34,26 +34,37 @@ class Skymaps:
 		#READ MAPS
 
 		file_map = self.parse_path(map_dict["path_map"])
-		file_noise = self.parse_path(map_dict["path_noise"])
+		if 'path_noise' in map_dict:
+			file_noise = self.parse_path(map_dict["path_noise"])
+		else:
+			file_noise = None
 		wavelength = map_dict["wavelength"]
 		psf = map_dict["beam"]
 		beam_area = map_dict["beam"]["area"]
 		color_correction = map_dict["color_correction"]
 
 		#SPIRE Maps have Noise maps in the second extension.
-		if file_map == file_noise:
-			header_ext_map = 1
-			header_ext_noise = 2
+		if file_noise is not None:
+			if file_map == file_noise:
+				header_ext_map = 1
+				header_ext_noise = 2
+			else:
+				header_ext_map = 0
+				header_ext_noise = 0
 		else:
 			header_ext_map = 0
-			header_ext_noise = 0
-		if os.path.isfile(file_map) and os.path.isfile(file_noise):
+			header_ext_noise = None
+		#if os.path.isfile(file_map) and os.path.isfile(file_noise):
+		if os.path.isfile(file_map):
 			try:
 				cmap, hd = fits.getdata(file_map, header_ext_map, header=True)
-				cnoise, nhd = fits.getdata(file_noise, header_ext_noise, header=True)
 			except:
 				cmap, hd = fits.getdata(file_map, 1, header=True)
-				cnoise, nhd = fits.getdata(file_noise, 1, header=True)
+			if file_noise is not None:
+				try:
+					cnoise, nhd = fits.getdata(file_noise, header_ext_noise, header=True)
+				except:
+					cnoise, nhd = fits.getdata(file_noise, 1, header=True)
 		else:
 			print("Files not found, check path in config file: "+file_map)
 			pdb.set_trace()
@@ -69,10 +80,13 @@ class Skymaps:
 		kern = self.gauss_kern(fwhm, np.floor(fwhm * 8.)/pix, pix)
 
 		map_dict["map"] = self.clean_nans(cmap) * color_correction
-		map_dict["noise"] = self.clean_nans(cnoise, replacement_char=1e10) * color_correction
 		if beam_area != 1.0:
 			map_dict["map"] *= beam_area * 1e6
-			map_dict["noise"] *= beam_area * 1e6
+		if file_noise is not None:
+			map_dict["noise"] = self.clean_nans(cnoise, replacement_char=1e10) * color_correction
+			if beam_area != 1.0:
+				map_dict["noise"] *= beam_area * 1e6
+
 		map_dict["header"] = hd
 		map_dict["pixel_size"] = pix
 		map_dict["psf"] = self.clean_nans(kern)
