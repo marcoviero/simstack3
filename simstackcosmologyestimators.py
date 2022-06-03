@@ -671,7 +671,8 @@ class SimstackCosmologyEstimators:
         vol = self.comoving_volume_given_area(area_deg2, zlo, zhi)
         lird = lir_in['50'] * ngals / vol.value / completeness
 
-        cv = 0.06 #self.moster2011_cosmic_variance((zhi + zlo) / 2, zhi - zlo)
+        #cv = 0.06 #
+        cv = self.moster2011_cosmic_variance((zhi + zlo) / 2, zhi - zlo)
 
         if dlir_in is not None:
             dlir = np.sqrt(((lir_in['68'] - lir_in['32']) / 2) ** 2 + np.diff(dlir_in) ** 2)
