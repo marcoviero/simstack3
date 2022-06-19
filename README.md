@@ -1,4 +1,4 @@
-# simstack3
+# SIMSTACK3
 
 If you are here for **[The Early Universe was Dust-Rich and Extremely Hot](https://arxiv.org/abs/2203.14312)**, (Viero et al. 2022) the Python code you will need to reproduce the result is contained in this repository.  
 Instructions in the form of Jupyter Notebooks, and links to the data products needed (e.g., maps, catalog, config file) can be found [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
