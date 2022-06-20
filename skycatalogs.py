@@ -40,6 +40,9 @@ class Skycatalogs:
 
 		catalog_params = self.config_dict['catalog']
 		path_catalog = os.path.join(self.parse_path(catalog_params['path']), catalog_params['file'])
+		if not os.path.isfile(path_catalog):
+			path_catalog = os.path.join('..', path_catalog)
+
 		if os.path.isfile(path_catalog):
 			self.catalog_dict['tables'] = {'full_table': pd.read_table(path_catalog, sep=',')}
 		else:

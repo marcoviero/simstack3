@@ -54,7 +54,11 @@ class Skymaps:
 		else:
 			header_ext_map = 0
 			header_ext_noise = None
-		#if os.path.isfile(file_map) and os.path.isfile(file_noise):
+
+		if not os.path.isfile(file_map):
+			file_map = os.path.join('..', file_map)
+			file_noise = os.path.join('..', file_noise)
+
 		if os.path.isfile(file_map):
 			try:
 				cmap, hd = fits.getdata(file_map, header_ext_map, header=True)
