@@ -4,7 +4,7 @@ If you are here for **[The Early Universe was Dust-Rich and Extremely Hot](https
 Instructions in the form of Jupyter Notebooks, and links to the data products needed (e.g., maps, catalog, config file) can be found [here](https://github.com/marcoviero/simstack3/tree/main/viero2022).
 
 Welcome to SIMSTACK3, a simultaneous stacking code, now compatible with python 3.  For literature describing how SIMSTACK works see [Viero et al. 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...779...32V/abstract). <br>
-Improvements on the original simstack code include the addition of a background layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
+Improvements on the original simstack code include the addition of a foreground layer, and masking, following [Duivenvoorden et al. 2020](https://ui.adsabs.harvard.edu/abs/2020MNRAS.491.1355D/abstract).
 
 SIMSTACK3 is separated into two distinct parts:
 1. Performing the stack and saving the results (this can take a long time, so better to limit the number of times you do this)  
@@ -54,9 +54,9 @@ The code centers around the configuration file, config.ini (or whatever name you
 
 We use uvista.ini as an example of the format. The configuration file has the following sections:
 #### general
-> binning = {"stack_all_z_at_once": 1, "add_background": 1, "crop_circles": 1}
+> binning = {"stack_all_z_at_once": 1, "add_foreground": 1, "crop_circles": 1}
 - stack_all_z_at_once: (default True) True to stack all redshifts together.  Optimal, but also requires a lot of memory.  Alternative is stacking in redshift slices.
-- add_background: (default True) Adds an additional layer, a background of all 1's, to the simultaneous stack.
+- add_foreground: (default True) Adds an additional layer, a foreground of all 1's, to the simultaneous stack.
 - crop_circles: (default True) draw circles around each source in each layer and flatten, keeping only pixels in fit.
 > error_estimator = {"bootstrap": {"initial_bootstrap": 1, "iterations": 150}, "write_simmaps": 0, "randomize": 0}
 - bootstrap: Errors derived via. bootstrap method.  Layer parameters are named incrimentaly, beginning with "initial_bootstrap", which also happens to define the seed for the random shuffling, so that the bootstrap is identical from band to band. 
@@ -106,7 +106,7 @@ SIMSTACK splits each bin in two, with a size ratio of 80:20, and stacks them sim
 motivation behind SIMSTACK in the first place, that correlated sources will bias the measurement, so all sources that generate signal must 
 be stacked together.  
 Note, this slows down the calculation considerably.  If you originally had 50 bins (e.g., 5 redshift, 5 stellar mass, 2 types), resulting in 
-stacking 50 layers (51 if you include background), the bootstrap calculation is 100 bins (101 with background), which requires a lot of RAM!
+stacking 50 layers (51 if you include foreground), the bootstrap calculation is 100 bins (101 with foreground), which requires a lot of RAM!
 If this is a problem you have two options:
 1. Stack in Redshift Layers;
 2. Split the sample into redshift chunks, e.g., bins z=[0,1,2] and z=[2,3,4] in each chunk, and combine the results afterward.  
