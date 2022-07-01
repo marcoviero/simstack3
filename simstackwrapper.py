@@ -26,8 +26,14 @@ class SimstackWrapper(SimstackAlgorithm):
         - Simulated map of best-fits
 
     '''
-    def __init__(self, param_file_path, read_maps=False, read_catalog=False, keep_catalog=False,
-                 stack_automatically=False, save_automatically=True, parse_automatically=False,
+    def __init__(self,
+                 param_file_path,
+                 read_maps=False,
+                 read_catalog=False,
+                 keep_catalog=False,
+                 stack_automatically=False,
+                 save_automatically=True,
+                 parse_automatically=False,
                  overwrite_results=False):
         super().__init__(param_file_path)
 

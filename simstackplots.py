@@ -1,7 +1,6 @@
 import pdb
 import os
 import numpy as np
-import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
@@ -14,15 +13,7 @@ a_nu_flux_to_mass = 6.7e19
 sigma_upper_limit = 3
 
 font = {'size': 14}
-matplotlib.rc('font', **font)
-#plt.rcParams.update({
-#  "text.usetex": True,
-#  "font.family": "Helvetica"
-#})
-
-#plt.rcParams['text.usetex'] = True
-#matplotlib.rc('text', usetex=True)
-#matplotlib.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+plt.rc('font', **font)
 
 class SimstackPlots(SimstackToolbox):
 
@@ -161,7 +152,7 @@ class SimstackPlots(SimstackToolbox):
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
-    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True, ylim=[5, 9],
+    def plot_total_lird(self, total_lird_dict, plot_lird=False, plot_sfrd=True, xlim=None, ylim=[5, 9],
                         save_path=None, save_filename="Tdust.pdf"):
 
         z_bins = np.unique(self.config_dict['distance_bins']['redshift'])
@@ -184,7 +175,10 @@ class SimstackPlots(SimstackToolbox):
             plt.plot(z_mid, np.log10(lird_total), '-', label='total', color='c')
             plt.xlabel('Redshift')
             plt.ylabel('IR Luminosity Density [Lsun Mpc^-3]')
-            plt.xlim([0, z_bins[-1]])
+            if xlim is not None:
+                plt.xlim(xlim)
+            else:
+                plt.xlim([0, z_bins[-1]])
             plt.ylim(ylim)
             plt.legend(loc='lower left', frameon=False)
 
@@ -246,7 +240,10 @@ class SimstackPlots(SimstackToolbox):
 
             plt.xlabel('Redshift')
             plt.ylabel('SFR Density [Msun yr^-1 Mpc^-3]')
-            plt.xlim([0, z_bins[-1] - 0.5])
+            if xlim is not None:
+                plt.xlim(xlim)
+            else:
+                plt.xlim([0, z_bins[-1] - 0.5])
             plt.ylim([-3.75, -0.75])
             # plt.legend(loc='lower left', frameon=False)
             plt.legend(bbox_to_anchor=(1, 1), loc="upper left")
@@ -254,7 +251,7 @@ class SimstackPlots(SimstackToolbox):
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
-    def plot_total_sfrd(self, total_sfrd_dict, plot_lird=True, ylim=[-3.75, -0.75],
+    def plot_total_sfrd(self, total_sfrd_dict, plot_lird=True, xlim=None, ylim=[-3.75, -0.75],
                         show_qt=False, save_path=None, save_filename="SFRD.pdf"):
 
         bin_keys = list(self.config_dict['parameter_names'].keys())
@@ -317,19 +314,19 @@ class SimstackPlots(SimstackToolbox):
                 conv_lir_to_sfr * np.array([np.max([i, 0.00001]) for i in (lird_total - lird_error)])),
                             np.log10(conv_lir_to_sfr * (lird_total + lird_error)), facecolor='k', alpha=0.2,
                             edgecolor='k',
-                            label='This Work - L_SED')
+                            label='This Work - L$_{SED}$')
 
             ax2 = ax.twinx()
             ax2.plot(z_mid, np.log10(lird_total), '-', color='k', alpha=0.75)
             # Adding Twin Axes to plot using dataset_2
             ax2.set_ylim(np.log10(1 / conv_lir_to_sfr * 10 ** np.array(ylim)))
 
-            ax2.set_ylabel('log(LIR Density) [Lsun Mpc^-3]')
+            ax2.set_ylabel('log(LIR Density) [$\mathrm{L_{\odot}~ Mpc^{-3}}$]')
             ax2.tick_params(axis='y')
             # ax2.legend(loc='lower left', frameon=True, prop={'size': 12})
 
             for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
-                label = "This Work - log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
+                label = "This Work - log($M/\mathrm{M_{\odot}}$)=" + '-'.join(mlab.split('_')[2:])
                 ax.plot(z_mid, np.log10(conv_lir_to_sfr * total_sfrd_dict['lird_array']['50'][:, im, 1]), '-',
                         label=label)
             if show_qt:
@@ -351,13 +348,16 @@ class SimstackPlots(SimstackToolbox):
 
         ax.fill_between(z_mid, np.log10([np.max([i, 0.00001]) for i in sfrd_total - sfrd_error]),
                         np.log10(sfrd_total + sfrd_error), facecolor='c', alpha=0.3, edgecolor='c',
-                        label='This Work - L_850')
+                        label='This Work - L$_{850}$')
         ax.plot(z_mid, np.log10(sfrd_total), '-', color='c')
 
         ax.set_xlabel('Redshift')
-        ax.set_ylabel('log(SFR Density) [Msun yr^-1 Mpc^-3]')
-        # ax.ylabel('\rho_{SFR} [M_{\odot} yr^-1 Mpc^-3]')
-        ax.set_xlim([0, z_bins[-1] - 1])
+        ax.set_ylabel('log(SFR Density) [$\mathrm{M}_{\odot}~\mathrm{yr}^{-1}~\mathrm{Mpc}^{-3}$]')
+        # ax.set_ylabel('$\rho_{SFR}$ [$M_{\odot}$ yr^-1 Mpc^-3]')
+        if xlim is not None:
+            plt.xlim(xlim)
+        else:
+            ax.set_xlim([0, z_bins[-1] - 1])
         ax.set_ylim(ylim)
         ax.tick_params(axis="both", labelsize=14)
         ax.legend(loc='lower left', frameon=True, prop={'size': 11})
@@ -365,8 +365,10 @@ class SimstackPlots(SimstackToolbox):
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
 
+
     def plot_mcmc_seds(self, mcmc_dict, bootstrap_dict=None, errors=('25', '75'), fontsize=11.5,
-                       show_qt=False, show_A=True, save_path=None, save_filename="SEDs.pdf"):
+                       show_qt=False, show_A=True, mips_penalty='auto',
+                       save_path=None, save_filename="SEDs.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         wvs = mcmc_dict['wavelengths']
         wv_array = self.loggen(8, 1000, 100)
@@ -422,7 +424,6 @@ class SimstackPlots(SimstackToolbox):
                             mcmc_hi = self.graybody_fn([mcmc_out[0][2], mcmc_out[1][2]], wv_array)
 
                             # Plot model SEDs
-                            # ax.plot(wv_array, sed_array[0] * 1e3, color='k', lw=0.5)
                             if ip:
                                 ax.plot(wv_array, sed_forced_array[0] * 1e3, 'm:', lw=0.5)
 
@@ -442,15 +443,19 @@ class SimstackPlots(SimstackToolbox):
                             sfr = 35 * (M_mol / 1e10) ** (0.89) * ((1 + z_med[id_label]) / 3) ** (0.95)
 
                             if show_A:
-                                ax.text(9.0e0, 8e1, "A_fit={0:0.1f}".format(mcmc_out[0][1]),fontsize=fontsize)
+                                ax.text(9.0e0, 8e1, "A_fit={0:0.1f}".format(mcmc_out[0][1]), fontsize=fontsize)
                             else:
-                                ax.text(9.0e0, 8e1, "log(LIR/Lsun)={0:0.1f}".format(np.log10(LIR)), fontsize=fontsize)
-                            ax.text(9.0e0, 2.5e1, "SFR={0:.0f}Msun/yr".format(sfr[0]),fontsize=fontsize)
-                            ax.text(9.0e0, 7.2e0, "Trf={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])),fontsize=fontsize)
-                            ax.text(9.0e0, 2e0, "Ngals={0:0.0f}".format(ngals[id_label]),fontsize=fontsize)
+                                ax.text(9.0e0, 8e1, "log(LIR/L$_{\odot}$)" + "={0:0.1f}".format(np.log10(LIR)),
+                                        fontsize=fontsize)
+                            ax.text(9.0e0, 2.5e1, "SFR={0:.0f}".format(sfr[0]) + "M$_{\odot}$ yr$^{-1}$",
+                                    fontsize=fontsize)
+                            ax.text(9.0e0, 7.2e0,
+                                    "T$_{rf}$" + "={0:0.1f}K".format(mcmc_out[1][1] * (1 + z_med[id_label])),
+                                    fontsize=fontsize)
+                            ax.text(9.0e0, 2e0, "N$_{gals}$" + "={0:0.0f}".format(ngals[id_label]), fontsize=fontsize)
 
                             total_ngals += ngals[id_label]
-                            #print('Total cumulative galaxies={0:0.0f}'.format(total_ngals))
+                            # print('Total cumulative galaxies={0:0.0f}'.format(total_ngals))
 
                             for iwv, wv in enumerate(wvs):
                                 if wv in [24, 70]:
@@ -469,6 +474,25 @@ class SimstackPlots(SimstackToolbox):
                                         ax.scatter(wvs, yplot_boot, color=color, alpha=0.1)
 
                                 sigma_upper_limit = 3
+                                mp = 1
+
+                                if wv == 24:
+                                    if mips_penalty == "auto":
+                                        if (z_med[id_label] > 1.5) & (z_med[id_label] < 2) & (m_med[id_label] >= 10):
+                                            mp = 4
+                                        elif (z_med[id_label] > 2.0) & (z_med[id_label] < 2.5) & (
+                                                m_med[id_label] >= 10):
+                                            mp = 2.5
+                                        elif (z_med[id_label] > 1.5) & (z_med[id_label] < 2.5):
+                                            mp = 1
+                                        elif (z_med[id_label] > 0.5) & (z_med[id_label] < 3):
+                                            mp = 2
+                                        else:
+                                            mp = 1
+                                    elif mp > 1:
+                                        mp = mips_penalty
+                                    # print(id_label,z_med[id_label],m_med[id_label],mp)
+
                                 yerr_diag = np.sqrt(np.diag(yerr)[iwv])
                                 if y[iwv] - yerr_diag < 0:
                                     yplot = yerr_diag * sigma_upper_limit
@@ -477,7 +501,7 @@ class SimstackPlots(SimstackToolbox):
                                 else:
                                     yplot = y[iwv]
                                     ax.scatter(wv, yplot * 1e3, marker='o', s=90, facecolors='none', edgecolors=color)
-                                    ax.errorbar(wv, yplot * 1e3, yerr=np.sqrt(np.diag(yerr)[iwv]) * 1e3,
+                                    ax.errorbar(wv, yplot * 1e3, yerr=mp * np.sqrt(np.diag(yerr)[iwv]) * 1e3,
                                                 fmt="." + color, capsize=0)
 
                             ax.set_xscale('log')
@@ -500,14 +524,14 @@ class SimstackPlots(SimstackToolbox):
 
                             if iz == zlen - 1:
                                 ax.yaxis.set_label_position("right")
-                                #ax.set_ylabel(mlab.replace('stellar_mass_', 'log(M/Msun)=').replace('_', '-'))
+                                # ax.set_ylabel(mlab.replace('stellar_mass_', 'log(M/Msun)=').replace('_', '-'))
                                 ax.set_ylabel(mlab.replace('stellar_mass_', '').replace('_', '-'))
 
                             ax.set_ylim([1e-2, 5e2])
 
-        fig.text(0.5, -0.0075, 'Observed Wavelength [micron]', ha='center')
-        fig.text(0.146, 0.5, 'Flux Density [mJy beam^-1]', va='center', rotation='vertical')
-        fig.text(0.8535, 0.5, 'log(Stellar Mass) [log(Msun)]', va='center', rotation='vertical')
+        fig.text(0.5, -0.0075, 'Observed Wavelength [$\mu m$]', ha='center')
+        fig.text(0.146, 0.5, 'Flux Density [mJy beam$^{-1}$]', va='center', rotation='vertical')
+        fig.text(0.8535, 0.5, 'log(Stellar Mass) [log(M$_{\odot}$)]', va='center', rotation='vertical')
 
         if save_path is not None:
             plt.savefig(os.path.join(save_path, save_filename), format="pdf", bbox_inches="tight")
@@ -972,8 +996,9 @@ class SimstackPlots(SimstackToolbox):
             print("Skipping SED plotting because only single wavelength measured.")
 
     def plot_rest_frame_temperature(self, lir_in, xlim=[0, 10], ylim=[2e1, 140], xlog=False, ylog=True,
-                                    print_values=False,  show_fit=True, show_cmb=False, save_path=None,
-                                    not_flat_prior=None, save_filename="Tdust.pdf"):
+                                    print_values=False, show_fit=True, show_cmb=False,
+                                    interloper_penalty=None, not_flat_prior=None,
+                                    save_path=None, save_filename="Tdust.pdf"):
         bin_keys = list(self.config_dict['parameter_names'].keys())
         ds = [len(self.config_dict['parameter_names'][i]) for i in bin_keys]
 
@@ -1020,14 +1045,18 @@ class SimstackPlots(SimstackToolbox):
             label = "log(M/Msun)=" + '-'.join(mlab.split('_')[2:])
             plt.scatter(zmed[:, im, 1], (t_rf[:, im, 1]), marker='o', s=90, facecolors='none', edgecolors=color[im],
                         label=label)
-            plt.errorbar(zmed[:, im, 1], (t_rf[:, im, 1]), t_err[:, im, 1], fmt="." + color[im])
+            if interloper_penalty is not None:
+                pen_err = np.array([i[im] for i in interloper_penalty])
+                t_err_out = np.sqrt(t_err[:, im, 1] ** 2 + pen_err ** 2)
+            else:
+                t_err_out = t_err[:, im, 1]
+            plt.errorbar(zmed[:, im, 1], (t_rf[:, im, 1]), t_err_out, fmt="." + color[im])
 
         if not_flat_prior is not None:
             for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
                 for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
                     id_label = "__".join([zlab, mlab, plab])
                     if id_label in not_flat_prior:
-                        # pass
                         plt.scatter(zmed[iz, im, 1], (t_rf[iz, im, 1]), marker='o', s=90, color=color[im])
 
         z_in = np.linspace(0, zmed[-1, 0, 1] + 1.5)
@@ -1049,11 +1078,10 @@ class SimstackPlots(SimstackToolbox):
 
         pfit = np.polyfit(z_pf, t_pf, 2, cov=True)
         if print_values:
-            print(pfit[0])
-            print(np.sqrt(pfit[1]))
+            print("{0:0.1f}pm{1:0.1f} + {2:0.1f}pm{3:0.1f} + {4:0.1f}pm{5:0.1f}".format(pfit[0][2],np.sqrt(pfit[1][2,2]),pfit[0][1],np.sqrt(pfit[1][1,1]),pfit[0][0],np.sqrt(pfit[1][0,0])))
 
         if show_fit:
-            fit_label = "Tfit = {0:.1f} + {1:.1f}z + {2:.1f}z^2".format(pfit[0][2], pfit[0][1], pfit[0][0])
+            fit_label = "T$_\mathrm{fit}$"+"= {0:.1f} + {1:.1f}z + {2:.1f}z".format(pfit[0][2], pfit[0][1], pfit[0][0])+"$^2$"
             plt.plot(z_in, pfit[0][2] + pfit[0][1] * z_in + pfit[0][0] * z_in ** 2, '--', lw=2, label=fit_label)
 
         if xlog:

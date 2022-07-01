@@ -28,13 +28,16 @@ class Skycatalogs:
 		--
 	'''
 
-	#catalog_dict = {}
-
 	def __init__(self, config_dict):
 
 		self.config_dict = config_dict
 
 	def import_catalog(self, keep_catalog=False, qg_zcut=10):
+		''' Import a CSV file and split into populations.
+
+		:param keep_catalog: If True stores a copy of catalog in self (large file!)
+		:param qg_zcut: The redshift cutoff for application of star-forming/quiescent split.
+		'''
 
 		self.catalog_dict = {}
 
@@ -56,6 +59,10 @@ class Skycatalogs:
 			self.catalog_dict['tables'].pop('full_table')
 
 	def split_table_into_populations(self, qg_zcut):
+		''' Split into star-forming/quiescent using the specified method (labels, uvj, or nuvrj).
+
+		:param qg_zcut: The redshift cutoff for application of star-forming/quiescent split.
+		'''
 
 		# Make new table starting with RA and DEC
 		astrometry_keys = self.config_dict['catalog']['astrometry']
@@ -81,6 +88,13 @@ class Skycatalogs:
 			self.separate_sf_qt_nuvrj(split_dict, self.catalog_dict['tables']['full_table'], qg_zcut=qg_zcut)
 
 	def separate_by_label(self, split_dict, table, add_foreground=False):
+		''' Split into bins with pandas.cut.  Create a label for each bin.
+
+		:param split_dict: Dictionary defining split type and corresponding column names.
+		:param table: Raw table.
+		:param add_foreground: If True adds a 'foreground_layer' label.
+		:return:
+		'''
 		parameter_names = {}
 		label_keys = list(split_dict.keys())
 		for key in label_keys:
@@ -93,6 +107,7 @@ class Skycatalogs:
 			else:
 				bins = split_dict[key]['bins']
 				parameter_names[key] = ["_".join([key, str(i)]) for i in range(bins)]
+
 			# Categorize using pandas.cut.  So good.
 			col = pd.cut(table[split_dict[key]['id']], bins=bins, labels=False)
 			col.name = key  # Rename column to label

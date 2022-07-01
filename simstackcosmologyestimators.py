@@ -1,18 +1,9 @@
 import pdb
-#import os
-#import shutil
-#import logging
 import emcee
-#import scipy
-#from scipy.integrate import quad
 from scipy import special
-import decimal
-#import math
 import numpy as np
-#from astropy.io import fits
 from lmfit import Parameters, minimize, fit_report
-#from scipy.ndimage.filters import gaussian_filter
-#from scipy.optimize import curve_fit
+
 
 pi = 3.141592653589793
 L_sun = 3.839e26  # W
@@ -30,8 +21,19 @@ class SimstackCosmologyEstimators:
     def __init__(self):
         pass
 
-    def log_likelihood(self, theta, x, y, cov):
-        '''Log-likelihood for full covariance matrix '''
+    def log_likelihood(self,
+                       theta,
+                       x,
+                       y,
+                       cov):
+        ''' Log-likelihood given covariance without upper limits
+
+        :param theta: list containing A and T_observed
+        :param x: array of wavelengths in microns
+        :param y: array of flux densities in Jy/beam
+        :param cov: 2d covariance of flux densities across wavelengths
+        :return ll: log-likelihood
+        '''
         y_model = self.graybody_fn(theta, x)
         delta_y = y - y_model[0]
         ll = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov), delta_y)) +
@@ -41,43 +43,31 @@ class SimstackCosmologyEstimators:
             return -np.inf
         return ll
 
-    def log_likelihood_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
+    def log_likelihood_full(self,
+                            theta,
+                            x_d,
+                            y_d,
+                            cov_d,
+                            x_nd=None,
+                            y_nd=None,
+                            dy_nd=None,
+                            beta_in=1.8,
+                            alpha_in=2.0,
+                            sigma_upper_limit=3):
+        ''' Log-likelihood given covariance with upper limits
 
-        BETA_VALUE = 1.8
-        ALPHA_VALUE = 2.0
-        _sed_params = Parameters()
-        _sed_params.add('A', value=theta[0], vary=True)
-        _sed_params.add('T_observed', value=theta[1], vary=True)
-        _sed_params.add('beta', value=BETA_VALUE, vary=False)
-        _sed_params.add('alpha', value=ALPHA_VALUE, vary=False)
-
-        # log likelihood for detections
-        y_model_d = self.fast_sed(_sed_params, x_d)
-        delta_y = y_d - y_model_d[0]
-        ll_d = -0.5 * (np.matmul(delta_y, np.matmul(np.linalg.inv(cov_d), delta_y))
-                       + len(y_d) * np.log(2 * np.pi)
-                       + np.log(np.linalg.det(cov_d)))
-
-        # log likelihood for non-detections
-        ll_nd = 0.
-        if x_nd is not None:
-            y_model_nd = self.fast_sed(_sed_params, x_nd)
-            for j, dy_nd_j in enumerate(dy_nd):
-                _integrand_j = lambda yy: np.exp(decimal.Decimal(-0.5 * ((yy - y_model_nd[0][j]) ** 2 / dy_nd_j)))
-                _ypts_j = np.array([_integrand_j(i) for i in np.linspace(0., np.sqrt(dy_nd_j) * sigma_upper_limit, 100)])
-                _xpts_j = np.array([decimal.Decimal(i) for i in np.linspace(0., np.sqrt(dy_nd_j) * sigma_upper_limit, 100)])
-                _integral_j = ((_ypts_j[1:] + _ypts_j[:-1]) * (_xpts_j[1:] - _xpts_j[:-1]) / decimal.Decimal(2)).sum()
-                ll_nd += float(_integral_j.ln())
-        else:
-            pass
-
-        if not np.isfinite(ll_d + ll_nd):
-            return -np.inf
-
-        return ll_d + ll_nd
-
-    def log_likelihood_full(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None,
-                            beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+        :param theta: list containing A and T_observed.
+        :param x_d: array of wavelengths of detections in microns.
+        :param y_d: array of flux densities of detections in Jy/beam.
+        :param cov_d: 2d covariance of flux densities for detections across wavelengths.
+        :param x_nd: array of wavelengths of non-detections in microns.
+        :param y_nd: array of flux densities of non-detections in Jy/beam.
+        :param dy_nd: array of errors for non-detections in Jy/beam.
+        :param beta_in: RJ power-law approximation.
+        :param alpha_in: Wein power-law approximation.
+        :param sigma_upper_limit: Upper limit for non-detections.
+        :return: log-likelihood as sum of detection and non-detection log likelihoods
+        '''
 
         _sed_params = Parameters()
         _sed_params.add('A', value=theta[0], vary=True)
@@ -109,8 +99,13 @@ class SimstackCosmologyEstimators:
         return ll_d + ll_nd
 
     def log_prior(self, theta):
+        ''' Return flat prior within upper/lower bounds in A and T.
+
+        :param theta: list containing A and T.
+        :return: 0 if in bounds, inf if not.
+        '''
         A, T = theta
-        Amin = -38  #42
+        Amin = -38
         Amax = -33
         Tmin = 5
         Tmax = 32
@@ -121,42 +116,57 @@ class SimstackCosmologyEstimators:
         return -np.inf
 
     def log_prior_informative(self, theta, theta0):
+        ''' Return Gaussian prior around T_observed and dT
+
+        :param theta: list containing A and T
+        :param theta0: list containing target A and T
+        :return: log-prior if in bounds, inf if not
+        '''
         A, T = theta
         A0, T0, sigma_A, sigma_T = theta0  # theta0 = Ain, Tin, Aerr, Terr
-        Amin = -38  #42
+        Amin = -38
         Amax = -33
         Tmin = 5
         Tmax = 32
         error_infl = 1.0
 
-        #if Amin < A < Amax and Tmin < T < Tmax and sigma_A is not None and sigma_T is not None:
         if Amin < A < Amax and Tmin < T < Tmax and sigma_T is not None:
-            #lp = -0.5 * (np.sum((10**A - 10**A0) ** 2 / (10**sigma_A * error_infl) ** 2) +
-            #             np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
-            #     np.log(1.0/(np.sqrt(2*np.pi)*(10**sigma_A))) + np.log(1.0/(np.sqrt(2*np.pi)*sigma_T))
             lp = -0.5 * (np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
                  np.log(1.0/(np.sqrt(2*np.pi)*(sigma_T * error_infl) ** 2))
-            #lp = -0.5 * (np.sum((T - T0) ** 2 / (sigma_T * error_infl) ** 2)) + \
-            #     np.log(1.0 / (np.sqrt(2 * np.pi) * (sigma_T * error_infl) ** 2)) + \
-            #     -0.5 * (np.sum((A - A0) ** 2 / (sigma_A * error_infl) ** 2)) + \
-            #     np.log(1.0 / (np.sqrt(2 * np.pi) * (sigma_A * error_infl) ** 2))
             return lp
         return -np.inf
 
     def log_probability(self, theta, x, y, yerr, theta0):
+        ''' Return sum of log-prior and log-likelihood
+
+        :param theta: list containing A and T
+        :param x: array of wavelengths in microns
+        :param y: array of flux densities in Jy/beam
+        :param yerr: 2d covariance of flux densities for detections across wavelengths.
+        :param theta0: list containing target A and T (unused)
+        :return: sum of log-prior and log-likelihood
+        '''
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood(theta, x, y, yerr)
 
-    def log_probability_slow(self, theta, x_d, y_d, cov_d, x_nd=None, y_nd=None, dy_nd=None, sigma_upper_limit=3):
-        lp = self.log_prior(theta)
-        if not np.isfinite(lp):
-            return -np.inf
-        return lp + self.log_likelihood_slow(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd, sigma_upper_limit)
-
     def log_probability_full(self, theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
                              beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+        ''' Return sum of log-prior and log-likelihood including detections and non detections.
+
+        :param theta: list containing A and T_observed.
+        :param x_d: array of wavelengths of detections in microns.
+        :param y_d: array of flux densities of detections in Jy/beam.
+        :param cov_d: 2d covariance of flux densities for detections across wavelengths.
+        :param x_nd: array of wavelengths of non-detections in microns.
+        :param y_nd: array of flux densities of non-detections in Jy/beam.
+        :param dy_nd: array of errors for non-detections in Jy/beam.
+        :param beta_in: RJ power-law approximation.
+        :param alpha_in: Wein power-law approximation.
+        :param sigma_upper_limit: Upper limit for non-detections.
+        :return: sum of log-prior and log-likelihood (detection and non-detection log likelihoods summed)
+        '''
         lp = self.log_prior(theta)
         if not np.isfinite(lp):
             return -np.inf
@@ -165,13 +175,28 @@ class SimstackCosmologyEstimators:
 
     def log_probability_informative(self, theta, theta0, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
                                     beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3):
+        ''' Return sum of log-prior and log-likelihood including detections and non detections, and prior on
+        dust temperature.
+
+        :param theta: list containing A and T_observed.
+        :param x_d: array of wavelengths of detections in microns.
+        :param y_d: array of flux densities of detections in Jy/beam.
+        :param cov_d: 2d covariance of flux densities for detections across wavelengths.
+        :param x_nd: array of wavelengths of non-detections in microns.
+        :param y_nd: array of flux densities of non-detections in Jy/beam.
+        :param dy_nd: array of errors for non-detections in Jy/beam.
+        :param beta_in: RJ power-law approximation.
+        :param alpha_in: Wein power-law approximation.
+        :param sigma_upper_limit: Upper limit for non-detections.
+        :return: sum of log-prior and log-likelihood (detection and non-detection log likelihoods summed)
+        '''
         lp = self.log_prior_informative(theta, theta0)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood_full(theta, x_d, y_d, cov_d, x_nd, y_nd, dy_nd,
                                              beta_in, alpha_in, sigma_upper_limit)
 
-    def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
+    def mcmc_sed_estimator_basic(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25):
 
         pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
         nwalkers, ndim = pos.shape
@@ -183,8 +208,8 @@ class SimstackCosmologyEstimators:
 
         return flat_samples
 
-    def mcmc_sed_estimator_new(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25,
-                               beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3, slow=False, flat_prior=True):
+    def mcmc_sed_estimator(self, x, y, yerr, theta, mcmc_iterations=2500, mcmc_discard=25,
+                           beta_in=1.8, alpha_in=2.0, sigma_upper_limit=3, flat_prior=True):
 
         # Define non-detection as 1-sigma error below 0
         yerr_diag = np.diag(yerr)
@@ -211,21 +236,16 @@ class SimstackCosmologyEstimators:
         pos = np.array([theta[0], theta[1]]) + 1e-1 * np.random.randn(32, 2)
         nwalkers, ndim = pos.shape
 
-        if slow:
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, self.log_probability_slow,
-                                            args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
-                                                  sigma_upper_limit))
+        if flat_prior:
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, self.log_probability_full,
+                args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
+                      beta_in, alpha_in, sigma_upper_limit))
         else:
-            if flat_prior:
-                sampler = emcee.EnsembleSampler(
-                    nwalkers, ndim, self.log_probability_full,
-                    args=(wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
-                          beta_in, alpha_in, sigma_upper_limit))
-            else:
-                sampler = emcee.EnsembleSampler(
-                    nwalkers, ndim, self.log_probability_informative,
-                    args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
-                          beta_in, alpha_in, sigma_upper_limit))
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, self.log_probability_informative,
+                args=(theta, wvs, fluxes, cov_fluxes, wvs_nd, fluxes_nd, dfluxes_nd,
+                      beta_in, alpha_in, sigma_upper_limit))
 
         sampler.run_mcmc(pos, mcmc_iterations, progress=True)
         flat_samples = sampler.get_chain(discard=mcmc_discard, thin=15, flat=True)
@@ -233,7 +253,7 @@ class SimstackCosmologyEstimators:
         return flat_samples
 
     def loop_mcmc_sed_estimator(self, sed_bootstrap_dict, tables, mcmc_iterations=500, mcmc_discard=50,
-                                mips_penalty=1, include_qt=True, slow=False, flat_prior=True, sigma_upper_limit=3):
+                                mips_penalty=1, include_qt=True, flat_prior=True, sigma_upper_limit=3):
 
         id_distance = self.config_dict['catalog']['classification']['redshift']['id']
         id_secondary = self.config_dict['catalog']['classification']['stellar_mass']['id']
@@ -263,7 +283,7 @@ class SimstackCosmologyEstimators:
                         yerr = np.cov(sed_bootstrap_dict['sed_bootstrap_fluxes_dict'][id_label], rowvar=False)
                         y_dict[id_label] = y
                         yerr_dict[id_label] = yerr
-                        z_median = np.median(full_table[id_distance][ind_gals])
+                        z_median = np.median(full_table[id_distance][ind_gals].dropna())
 
                         z_bin_edges = [float(i) for i in zlab.split('_')[1:]]
                         z_mid_low = (z_bin_edges[0] + z_median)/2
@@ -298,20 +318,19 @@ class SimstackCosmologyEstimators:
                                 flat_prior_in = True
                         else:
                             flat_prior_in = flat_prior
-                        #print(m_median)
-                        #pdb.set_trace()
+
                         mcmc_dict[id_label] = self.estimate_mcmc_sed(sed_bootstrap_dict, id_label,
                                                                      z_median=z_median, m_median=m_median,
                                                                      mips_penalty=mips_penalty,
                                                                      mcmc_iterations=mcmc_iterations,
                                                                      mcmc_discard=mcmc_discard,
                                                                      sigma_upper_limit=sigma_upper_limit,
-                                                                     slow=slow, flat_prior=flat_prior_in)
+                                                                     flat_prior=flat_prior_in)
 
         return return_dict
 
     def estimate_mcmc_sed(self, sed_bootstrap_dict, id_label, z_median=0, m_median=0, mips_penalty='auto',
-                          mcmc_iterations=500, mcmc_discard=5, sigma_upper_limit=3, slow=False, flat_prior=True):
+                          mcmc_iterations=500, mcmc_discard=5, sigma_upper_limit=3, flat_prior=True):
 
         if not z_median:
             z_label = id_label.split('_')[1:3]
@@ -321,10 +340,12 @@ class SimstackCosmologyEstimators:
             m_median = np.mean([float(i) for i in m_label])
 
         if mips_penalty == "auto":
-            if (z_median > 2.0) & (z_median < 2.5):
-                mips_penalty = 2.5
-            elif (z_median > 1.5) & (z_median < 2):
+            if (z_median > 1.5) & (z_median < 2) & (m_median >= 10):
                 mips_penalty = 4
+            elif (z_median > 2.0) & (z_median < 2.5) & (m_median >= 10):
+                mips_penalty = 2.5
+            elif (z_median > 1.5) & (z_median < 2.5):
+                mips_penalty = 1
             elif (z_median > 0.5) & (z_median < 3):
                 mips_penalty = 2
             else:
@@ -337,39 +358,13 @@ class SimstackCosmologyEstimators:
         yboot[:, 0] *= mips_penalty
         yerr = np.cov(yboot, rowvar=False)
 
-        '''
-        sed_params = self.fast_sed_fitter(x, y, yerr, redshiftin=z_median, stellarmassin=m_median)
-        Ain = sed_params['A'].value
-        Aerr = sed_params['A'].stderr
-        Tin = sed_params['T_observed'].value
-        Terr = sed_params['T_observed'].stderr
-        Tmodel = (22.5 + 5.8 * z_median + 0.4 * z_median**2) / (1 + z_median)
-        #Tmodel = (23.8 + 2.7 * z_median + 0.9 * z_median**2) / (1 + z_median)
-
-        if Terr is None or abs(Tmodel-Tin) > 3 or Tin >= 22:
-            Tin = Tmodel
-            Terr = 0.1 * Tin
-            Ain = -35
-            Aerr = 1  # np.sqrt(abs(Ain))
-            if flat_prior:
-                print(id_label, ': No fit found, using T_0(z={1:0.1f}) = {0:0.1f}, A_0(z={1:0.1f}) = {2:0.1f}'.format(Tin, z_median, Ain))
-            else:
-                print(id_label, ': No fit found, using T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
-        else:
-            Terr = np.min([np.max([Terr, 0.001 * Tin]), Tin])
-            if flat_prior:
-                print(id_label, ': T_0(z={1:0.1f}) = {0:0.1f}, A_0(z={1:0.1f}) = {2:0.1f}'.format(Tin, z_median, Ain))
-            else:
-                print(id_label, ': T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
-        '''
-
         Tmodel = (22.5 + 5.8 * z_median + 0.4 * z_median ** 2) / (1 + z_median)
         Amodel = -47 - z_median*0.05 + 11 * (m_median / 10)
         if np.isfinite(Tmodel):
             Ain = Amodel
             Aerr = 0.1  #0.25
             Tin = Tmodel
-            Terr = 0.5  #1.0  #2.0
+            Terr = 0.25  # 0.5  #1.0  #2.0
         else:
             Ain = -35
             Aerr = 1
@@ -381,27 +376,12 @@ class SimstackCosmologyEstimators:
             prior_suffix = 'prior'
         print(id_label, ': T_rf_{0}(z={3:0.1f}) = {1:0.1f}+-{2:0.2f}, A_{0}(z={3:0.1f}) = {4:0.1f}+-{5:0.2f}'.format(prior_suffix, Tin * (1+z_median), Terr, z_median, Ain, Aerr))
 
-        #if id_label == 'redshift_1.5_2.0__stellar_mass_9.5_10.0__split_params_1'
-        #if id_label == 'redshift_8.0_10.0__stellar_mass_10.0_10.5__split_params_1':
-        #    Ain = -35
-        #    Aerr = 0.5
-        #    Terr = 0.01 * Tin
-        #    print('Actually, T_prior(z={2:0.1f}) = {0:0.1f}+-{1:0.2f}, A_prior(z={2:0.1f}) = {3:0.1f}+-{4:0.2f}'.format(Tin, Terr, z_median, Ain, Aerr))
-
-        #if (id_label == 'redshift_4.0_5.0__stellar_mass_9.5_10.0__split_params_1') or \
-        #        (id_label == 'redshift_1.5_2.0__stellar_mass_9.5_10.0__split_params_1') or \
-        #        (id_label == 'redshift_2.0_2.5__stellar_mass_9.5_10.0__split_params_1') or \
-        #        (id_label == 'redshift_3.5_4.0__stellar_mass_10.0_10.5__split_params_1') or \
-        #        (id_label == 'redshift_6.0_8.0__stellar_mass_10.5_11.0__split_params_1') or \
-        #        (id_label == 'redshift_6.0_8.0__stellar_mass_11.0_12.0__split_params_1'):
-        #    Tin = (32.9 + 4.6 * (z_median - 2)) / (1 + z_median)
-
         theta0 = Ain, Tin, Aerr, Terr
 
         if np.isfinite(np.log(np.linalg.det(yerr))):
-            flat_samples = self.mcmc_sed_estimator_new(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
-                                                       mcmc_discard=mcmc_discard, sigma_upper_limit=sigma_upper_limit,
-                                                       slow=slow, beta_in=1.8, alpha_in=2.0, flat_prior=flat_prior)
+            flat_samples = self.mcmc_sed_estimator(x, y, yerr, theta0, mcmc_iterations=mcmc_iterations,
+                                                   mcmc_discard=mcmc_discard, sigma_upper_limit=sigma_upper_limit,
+                                                   beta_in=1.8, alpha_in=2.0, flat_prior=flat_prior)
         else:
             return -np.inf
 
