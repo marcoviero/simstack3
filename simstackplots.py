@@ -995,6 +995,7 @@ class SimstackPlots(SimstackToolbox):
         else:
             print("Skipping SED plotting because only single wavelength measured.")
 
+
     def plot_rest_frame_temperature(self, lir_in, xlim=[0, 10], ylim=[2e1, 140], xlog=False, ylog=True,
                                     print_values=False, show_fit=True, show_cmb=False,
                                     interloper_penalty=None, not_flat_prior=None,
@@ -1018,10 +1019,17 @@ class SimstackPlots(SimstackToolbox):
                     if ip:
                         if id_label in lir_in['Tobs_dict']:
                             t_obs[iz, im, ip] = lir_in['mcmc_out'][id_label][1][3]
-                            t_err[iz, im, ip] = np.sqrt(
-                                (lir_in['mcmc_out'][id_label][1][5] - lir_in['mcmc_out'][id_label][1][1]) ** 2 +
-                                ((t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][1])) -
-                                 (t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][0]))) ** 2)
+                            if lir_in['dz_median'][id_label][1] > 0:
+                                t_err[iz, im, ip] = np.sqrt(
+                                    (lir_in['mcmc_out'][id_label][1][5] - lir_in['mcmc_out'][id_label][1][1]) ** 2 +
+                                    ((t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][1])) -
+                                     (t_obs[iz, im, ip] * (1 + lir_in['dz_median'][id_label][0]))) ** 2)
+                            else:
+                                dz = (float(zlab.split('_')[1:][1]) - float(zlab.split('_')[1:][0])) / 2
+                                t_err[iz, im, ip] = np.sqrt(
+                                    (lir_in['mcmc_out'][id_label][1][5] - lir_in['mcmc_out'][id_label][1][1]) ** 2 +
+                                    ((t_obs[iz, im, ip] * (1 + dz)) ** 2))
+
                             t_rf[iz, im, ip] = t_obs[iz, im, ip] * (1 + lir_in['z_median'][id_label])
                             if not_flat_prior is not None:
                                 if id_label not in not_flat_prior:
@@ -1030,13 +1038,12 @@ class SimstackPlots(SimstackToolbox):
                             else:
                                 tave.append(t_rf[iz, im, ip])
                                 terr.append(t_err[iz, im, ip] ** 2)
+
                             sm[iz, im, ip] = lir_in['m_median'][id_label]
                             zmed[iz, im, ip] = lir_in['z_median'][id_label]
 
                             z_pf.append(lir_in['z_median'][id_label])
                             t_pf.append(t_rf[iz, im, ip])
-            if print_values:
-                print(zlab + ' T = {0:0.1f}+= {1:0.1f}'.format(np.mean(tave), np.sqrt(np.mean(terr))))
 
         plt.figure(figsize=(9, 6))
 
@@ -1078,10 +1085,16 @@ class SimstackPlots(SimstackToolbox):
 
         pfit = np.polyfit(z_pf, t_pf, 2, cov=True)
         if print_values:
-            print("{0:0.1f}pm{1:0.1f} + {2:0.1f}pm{3:0.1f} + {4:0.1f}pm{5:0.1f}".format(pfit[0][2],np.sqrt(pfit[1][2,2]),pfit[0][1],np.sqrt(pfit[1][1,1]),pfit[0][0],np.sqrt(pfit[1][0,0])))
+            print("{0:0.1f}pm{1:0.1f} + {2:0.1f}pm{3:0.1f} + {4:0.1f}pm{5:0.1f}".format(pfit[0][2],
+                                                                                        np.sqrt(pfit[1][2, 2]),
+                                                                                        pfit[0][1],
+                                                                                        np.sqrt(pfit[1][1, 1]),
+                                                                                        pfit[0][0],
+                                                                                        np.sqrt(pfit[1][0, 0])))
 
         if show_fit:
-            fit_label = "T$_\mathrm{fit}$"+"= {0:.1f} + {1:.1f}z + {2:.1f}z".format(pfit[0][2], pfit[0][1], pfit[0][0])+"$^2$"
+            fit_label = "T$_\mathrm{fit}$" + "= {0:.1f} + {1:.1f}z + {2:.1f}z".format(pfit[0][2], pfit[0][1],
+                                                                                      pfit[0][0]) + "$^2$"
             plt.plot(z_in, pfit[0][2] + pfit[0][1] * z_in + pfit[0][0] * z_in ** 2, '--', lw=2, label=fit_label)
 
         if xlog:
