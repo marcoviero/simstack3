@@ -72,30 +72,17 @@ class SimstackResults(SimstackToolbox):
 					boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
 
 				results_object = self.results_dict['band_results_dict'][key][boot_label]
-				#pdb.set_trace()
 
 				for z, zval in enumerate(self.config_dict['catalog']['distance_labels']):
-					#if 'all_redshifts' in results_object:
-					#	zlab = 'all_redshifts'
-					#else:
-					#	zlab = zval
 					for i, ival in enumerate(label_dict[label_keys[1]]):
 						if len(label_keys) > 2:
 							for j, jval in enumerate(label_dict[label_keys[2]]):
 								label = "__".join([zval, ival, jval]).replace('.', 'p')
-								# print(label)
 								# CHECK THAT LABEL EXISTS FIRST
 								if label in results_object:
-									# print(label, ' exists')
-									#flux_array[iboot, z, i, j] = results_object[label].value
 									if label+'__bootstrap2' in results_object:
 										outlier_array[iboot, z, i, j] = results_object[label].value
 										flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
-										#flux_array[iboot, z, i, j] = np.sqrt(
-										#	0.5 * results_object[label + '__bootstrap2'].value**2 +
-										#	0.5 * results_object[label].value ** 2)
-										#print(label)
-										#pdb.set_trace()
 									else:
 										flux_array[iboot, z, i, j] = results_object[label].value
 
@@ -104,14 +91,9 @@ class SimstackResults(SimstackToolbox):
 						else:
 							label = "__".join([zval, ival]).replace('.', 'p')
 							if label in results_object:
-								# print(label, ' exists')
-								#flux_array[iboot, z, i] = results_object[label].value
 								if label + '__bootstrap2' in results_object:
 									outlier_array[iboot, z, i] = results_object[label].value
 									flux_array[iboot, z, i] = results_object[label+'__bootstrap2'].value
-									#flux_array[iboot, z, i] = np.sqrt(
-									#	0.5 * results_object[label + '__bootstrap2'].value ** 2 +
-									#	0.5 * results_object[label].value ** 2)
 								else:
 									flux_array[iboot, z, i] = results_object[label].value
 
@@ -292,7 +274,6 @@ class SimstackResults(SimstackToolbox):
 						for iboot in range(boots):
 							flux_label = 'stacked_flux_densities'
 							boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
-							#print(label+'__bootstrap2')
 							if len(self.config_dict['parameter_names']) > 2:
 								if not iboot:
 									if label in self.results_dict['band_results_dict'][band_label][flux_label]:
@@ -306,9 +287,6 @@ class SimstackResults(SimstackToolbox):
 								if label in self.results_dict['band_results_dict'][band_label][boot_label]:
 									boot_dict[id_label][iboot, iwv] = \
 										self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']
-									#boot_dict[id_label][iboot, iwv] = np.sqrt(
-									#	0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label+'__bootstrap2']**2 +
-									#	0.5 * self.results_dict['band_results_dict'][band_label][boot_label][label] ** 2)
 
 									error_dict[id_label] = np.std(boot_dict[id_label], axis=0)
 
@@ -330,8 +308,6 @@ class SimstackResults(SimstackToolbox):
 			for iboot in range(boots):
 				flux_label = 'stacked_flux_densities'
 				boot_label = '_'.join(['bootstrap_flux_densities', str(int(iboot + 1))])
-				#print(boot_label)
-				#pdb.set_trace()
 				for iz, zlab in enumerate(self.config_dict['parameter_names'][bin_keys[0]]):
 					for im, mlab in enumerate(self.config_dict['parameter_names'][bin_keys[1]]):
 						if len(self.config_dict['parameter_names']) > 2:

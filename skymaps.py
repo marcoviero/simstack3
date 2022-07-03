@@ -1,12 +1,11 @@
 import pdb
 import os
-import json
 import numpy as np
 from astropy.io import fits
 
 class Skymaps:
 	'''
-	This Class creates Objects for a set of
+	This Class creates objects for a set of
 	maps/noisemaps/beams/etc., at each Wavelength.
 
 	Each map is defined through parameters in the config.ini file:
@@ -23,15 +22,22 @@ class Skymaps:
 		pass
 
 	def import_maps(self):
+		''' Import maps (and optionally noisemaps) described in config file.
 
-		#self.maps_dict = {}
+		:return: Map dictionary stored in self.maps_dict.
+		'''
+
 		for imap in self.config_dict['maps']:
-			map_params = self.config_dict['maps'][imap].copy()  # otherwise seems to make a copy in config_dict (??)
+			map_params = self.config_dict['maps'][imap].copy()
 			map_dict = self.import_map_dict(map_params)
 			self.maps_dict[imap] = map_dict
 
 	def import_map_dict(self, map_dict):
-		#READ MAPS
+		''' Import maps described in config file and populate map_dict with parameters.
+
+		:param map_dict:
+		:return: populated map_dict
+		'''
 
 		file_map = self.parse_path(map_dict["path_map"])
 		if 'path_noise' in map_dict:
@@ -54,7 +60,11 @@ class Skymaps:
 		else:
 			header_ext_map = 0
 			header_ext_noise = None
-		#if os.path.isfile(file_map) and os.path.isfile(file_noise):
+
+		if not os.path.isfile(file_map):
+			file_map = os.path.join('..', file_map)
+			file_noise = os.path.join('..', file_noise)
+
 		if os.path.isfile(file_map):
 			try:
 				cmap, hd = fits.getdata(file_map, header_ext_map, header=True)

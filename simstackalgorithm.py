@@ -34,8 +34,14 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['distance_bins'] = {'redshift': zbins,
                                              'lookback_time': self.config_dict['cosmology_dict']['cosmology'].lookback_time(zbins)}
 
-    def perform_simstack(self, add_background=False, crop_circles=True, stack_all_z_at_once=False, write_simmaps=False,
-                         bootstrap=0, force_fwhm=None, randomize=False):
+    def perform_simstack(self,
+                         bootstrap=0,
+                         add_foreground=False,
+                         crop_circles=True,
+                         stack_all_z_at_once=False,
+                         write_simmaps=False,
+                         force_fwhm=None,
+                         randomize=False):
         '''
         perform_simstack takes the following steps:
         0. Get catalog and drop nans
@@ -43,7 +49,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         2. Call stack_in_wavelengths
 
         Following parameters are overwritten if included in config file.
-        :param add_background: (bool) add additional background layer.
+        :param add_foreground: (bool) add additional foreground layer.
         :param crop_circles: (bool) exclude masked areas.
         :params stack_all_z_at_once: (bool) choose between stacking in redshift slices or all at once.
         '''
@@ -51,13 +57,13 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             self.config_dict['general']['binning']['stack_all_z_at_once'] = stack_all_z_at_once
         if 'crop_circles' not in self.config_dict['general']['binning']:
             self.config_dict['general']['binning']['crop_circles'] = crop_circles
-        if 'add_background' not in self.config_dict['general']['binning']:
-            self.config_dict['general']['binning']['add_background'] = add_background
+        if 'add_foreground' not in self.config_dict['general']['binning']:
+            self.config_dict['general']['binning']['add_foreground'] = add_foreground
         if 'write_simmaps' not in self.config_dict['general']['error_estimator']:
             self.config_dict['general']['error_estimator']['write_simmaps'] = write_simmaps
         stack_all_z_at_once = self.config_dict['general']['binning']['stack_all_z_at_once']
         crop_circles = self.config_dict['general']['binning']['crop_circles']
-        add_background = self.config_dict['general']['binning']['add_background']
+        add_foreground = self.config_dict['general']['binning']['add_foreground']
         write_simmaps = self.config_dict['general']['error_estimator']['write_simmaps']
 
         # Get catalog.  Clean NaNs
@@ -98,10 +104,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                     labels = self.split_bootstrap_labels(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
                 else:
                     labels = self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)]
-                if add_background:
-                    labels.append("ones_background")
+                if add_foreground:
+                    labels.append("ones_foreground")
                 cov_ss_out = self.stack_in_wavelengths(catalog_in, labels=labels, distance_interval=distance_label,
-                                                       crop_circles=crop_circles, add_background=add_background,
+                                                       crop_circles=crop_circles, add_foreground=add_foreground,
                                                        bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize,
                                                        write_fits_layers=write_simmaps)
                 for wv in cov_ss_out:
@@ -119,10 +125,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 else:
                     labels.extend(self.catalog_dict['tables']['parameter_labels'][int(i*nlayers):int((i+1)*nlayers)])
                 distance_labels.append("_".join(["redshift", str(bins[int(i)]), str(bins[int(i) + 1])]).replace('.', 'p'))
-            if add_background:
-                labels.append("ones_background")
+            if add_foreground:
+                labels.append("ones_foreground")
             cov_ss_out = self.stack_in_wavelengths(catalog, labels=labels, distance_interval='all_redshifts',
-                                                   crop_circles=crop_circles, add_background=add_background,
+                                                   crop_circles=crop_circles, add_foreground=add_foreground,
                                                    bootstrap=bootstrap, force_fwhm=force_fwhm, randomize=randomize,
                                                    write_fits_layers=write_simmaps)
 
@@ -134,8 +140,31 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         self.config_dict['catalog']['distance_labels'] = distance_labels
         self.stack_successful = True
 
-    def build_cube(self, map_dict, catalog, labels=None, add_background=False, crop_circles=False, bootstrap=False,
-                   force_fwhm=None, randomize=False, write_fits_layers=False):
+    def build_cube(self,
+                   map_dict,
+                   catalog,
+                   labels=None,
+                   add_foreground=False,
+                   crop_circles=False,
+                   bootstrap=False,
+                   force_fwhm=None,
+                   randomize=False,
+                   write_fits_layers=False):
+        ''' Construct layer cube containing smoothed 2D arrays with positions defined by binning algorithm.
+        Optionally, foreground layer can be added; positions can be randomized for null testing; layers can be
+        smoothed to forced fwhm.
+
+        :param map_dict: Dict containing map (and optionally noise).
+        :param catalog: Catalog containing columns for ra, dec, and defining bins.
+        :param labels: Cube layer labels.
+        :param add_foreground: If True adds foreground layer.
+        :param crop_circles: If True crops unnecessary pixels.
+        :param bootstrap: Integer number as rng seed.
+        :param force_fwhm: Float target fwhm to smooth degrade maps to.
+        :param randomize: If True randomize source positions.
+        :param write_fits_layers: If True write layers to .fits.
+        :return: Dictionary containing 'cube' and 'labels'
+        '''
 
         cmap = map_dict['map'].copy()
         if 'noise' in map_dict:
@@ -157,13 +186,13 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         label_dict = self.config_dict['parameter_names']
         ds = [len(label_dict[k]) for k in label_dict]
-        if (len(labels) - add_background) == np.prod(ds[1:]):
+        if (len(labels) - add_foreground) == np.prod(ds[1:]):
             nlists = ds[1:]
             llists = np.prod(nlists)
-        elif (len(labels) - add_background)/2 == np.prod(ds[1:]):
+        elif (len(labels) - add_foreground)/2 == np.prod(ds[1:]):
             nlists = ds[1:]
             llists = 2 * np.prod(nlists)
-        elif (len(labels) - add_background)/2 == np.prod(ds):
+        elif (len(labels) - add_foreground)/2 == np.prod(ds):
             nlists = ds
             llists = 2 * np.prod(nlists)
         else:
@@ -317,9 +346,9 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             ind_fit = np.where(0 * np.sum(layers, axis=0) == 0)
 
         nhits = np.shape(ind_fit)[1]
-        if add_background:
-            cfits_maps = np.zeros([nlayers + 3, nhits])  # +3 to append background, cmap and cnoise
-            trimmed_labels.append('background_layer')
+        if add_foreground:
+            cfits_maps = np.zeros([nlayers + 3, nhits])  # +3 to append foreground, cmap and cnoise
+            trimmed_labels.append('foreground_layer')
         else:
             cfits_maps = np.zeros([nlayers + 2, nhits])  # +2 to append cmap and cnoise
 
@@ -339,7 +368,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             kern = self.gauss_kern(fwhm, np.floor(fwhm * 10) / pix, pix)
 
-        #pdb.set_trace()
         for umap in range(nlayers):
             layer = layers[umap, :, :]
             tmap = self.smooth_psf(layer, kern)
@@ -348,7 +376,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
                 name_layer = 'layer_'+str(umap)+'.fits'
-                #pdb.set_trace()
                 hdu = fits.PrimaryHDU(tmap, header=hd)
                 hdul = fits.HDUList([hdu])
                 hdul.writeto(os.path.join(path_layer, name_layer))
@@ -360,8 +387,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if "convolved_layer_cube" in map_dict:
                 map_dict["convolved_layer_cube"][umap, :, :] = tmap - np.mean(tmap[ind_fit])
 
-            # If add_background=True, add background layer of ones.
-        if add_background:
+            # If add_foreground=True, add foreground layer of ones.
+        if add_foreground:
             cfits_maps[-3, :] = np.ones(np.shape(cmap[ind_fit]))
 
         # put map and noisemap in last two layers
@@ -370,39 +397,80 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         return {'cube': cfits_maps, 'labels': trimmed_labels}
 
-    def stack_in_wavelengths(self, catalog, labels=None, distance_interval=None, force_fwhm=None, crop_circles=False,
-                             add_background=False, bootstrap=False, randomize=False, write_fits_layers=False):
+    def stack_in_wavelengths(self,
+                             catalog,
+                             labels=None,
+                             distance_interval=None,
+                             force_fwhm=None,
+                             crop_circles=False,
+                             add_foreground=False,
+                             bootstrap=False,
+                             randomize=False,
+                             write_fits_layers=False):
+        ''' Loop through wavelengths and perform simstack.
+
+        :param catalog: Table containing ra, dec, and columns defining bins.
+        :param labels: Labels for each layer.
+        :param distance_interval: If stacking in redshift slices.
+        :param force_fwhm: If smoothing images to a forced fwhm (work in progress)
+        :param crop_circles: If True crops unused pixels.
+        :param add_foreground: If True add foreground layer.
+        :param bootstrap: Integer seed for random number generator.
+        :param randomize: If True shuffles ra/dec positions.
+        :param write_fits_layers: If True writes layers into .fits.
+        :return cov_ss_dict: Dict containing stacked fluxes per wavelengths.
+        '''
 
         map_keys = list(self.maps_dict.keys())
         cov_ss_dict = {}
+
+        # Loop through wavelengths
         for wv in map_keys:
+
             map_dict = self.maps_dict[wv].copy()
+
+            # Construct cube and labels for regression via lmfit.
             cube_dict = self.build_cube(map_dict, catalog.copy(), labels=labels, crop_circles=crop_circles,
-                                        add_background=add_background, bootstrap=bootstrap, randomize=randomize,
+                                        add_foreground=add_foreground, bootstrap=bootstrap, randomize=randomize,
                                         force_fwhm=force_fwhm, write_fits_layers=write_fits_layers)
             cube_labels = cube_dict['labels']
             print("Simultaneously Stacking {} Layers in {}".format(len(cube_labels), wv))
+
+            # Regress cube (i.e., this is simstack!)
             cov_ss_1d = self.regress_cube_layers(cube_dict['cube'], labels=cube_dict['labels'])
+
+            # Store in redshift slices.
             if 'stacked_flux_densities' not in map_dict:
                 map_dict['stacked_flux_densities'] = {distance_interval: cov_ss_1d}
             else:
                 map_dict['stacked_flux_densities'][distance_interval] = cov_ss_1d
+
+            # Add stacked fluxes to output dict
             cov_ss_dict[wv] = cov_ss_1d
 
             # Write simulated maps from best-fits
             if self.config_dict["general"]["error_estimator"]["write_simmaps"]:
                 for i, iparam_label in enumerate(cube_dict['labels']):
                     param_label = iparam_label.replace('.', 'p')
-                    if 'background' not in iparam_label:
+                    if 'foreground' not in iparam_label:
                         map_dict["convolved_layer_cube"][i, :, :] *= cov_ss_1d.params[param_label].value
 
                 self.maps_dict[wv]["flattened_simmap"] = np.sum(map_dict["convolved_layer_cube"], axis=0)
-                if 'background_layer' in cube_dict['labels']:
-                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["background_layer"].value
+                if 'foreground_layer' in cube_dict['labels']:
+                    self.maps_dict[wv]["flattened_simmap"] += cov_ss_1d.params["foreground_layer"].value
 
         return cov_ss_dict
 
-    def regress_cube_layers(self, cube, labels=None):
+    def regress_cube_layers(self,
+                            cube,
+                            labels=None):
+        ''' Performs simstack algorithm on layers contained in the cube.  The map and noisemap are the last two
+        layers in the cube and are extracted before stacking.  LMFIT is used to perform the regresssion.
+
+        :param cube: ndarray containing N-2 layers representing bins, a map layer, and a noisemap layer.
+        :param labels: Labels for each layer in the stack.
+        :return cov_ss_1d: lmfit object of the simstacked cube layers.
+        '''
 
         # Extract Noise and Signal Maps from Cube (and then delete layers)
         ierr = cube[-1, :]
@@ -427,8 +495,21 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                              nan_policy='propagate')
         return cov_ss_1d
 
-    def simultaneous_stack_array_oned(self, p, layers_1d, data1d, err1d=None, arg_order=None):
-        ''' Function to Minimize written specifically for lmfit '''
+    def simultaneous_stack_array_oned(self,
+                                      p,
+                                      layers_1d,
+                                      data1d,
+                                      err1d=None,
+                                      arg_order=None):
+        ''' Function to Minimize written specifically for lmfit
+
+        :param p: Parameters dictionary
+        :param layers_1d: Cube layers flattened to 1d
+        :param data1d: Map flattened to 1d
+        :param err1d: Noise flattened to 1d
+        :param arg_order: If forcing layers to correspond to labels
+        :return: data-model/error, or data-model if err1d is None.
+        '''
 
         v = p.valuesdict()
 
@@ -451,7 +532,21 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             return (data1d - model) / err1d
 
-    def get_x_y_from_ra_dec(self, wmap, cms, ind_src, ra_series, dec_series):
+    def get_x_y_from_ra_dec(self,
+                            wmap,
+                            cms,
+                            ind_src,
+                            ra_series,
+                            dec_series):
+        ''' Get x and y positions from ra, dec, and header.
+
+        :param wmap: astropy object
+        :param cms: map dimensions
+        :param ind_src: sources indicies
+        :param ra_series: ra
+        :param dec_series: dec
+        :return: x, y
+        '''
 
         ra = ra_series[ind_src].values
         dec = dec_series[ind_src].values

@@ -15,7 +15,6 @@ from simstackcosmologyestimators import SimstackCosmologyEstimators
 pi = 3.141592653589793
 L_sun = 3.839e26  # W
 c = 299792458.0  # m/s
-#conv_lir_to_sfr = 1.72e-10
 conv_lir_to_sfr = 1.728e-10 / 10 ** 0.23
 conv_luv_to_sfr = 2.17e-10
 a_nu_flux_to_mass = 6.7e19 # erg / s / Hz / Msun
@@ -29,6 +28,13 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         super().__init__()
 
     def combine_objects(self, second_object, merge_z=False):
+        ''' Combine stacks split into chunks, either by bootstrap or by redshifts.  The second_object is merged into
+        self.  If merging redshift slices merge_z=True.
+
+        :param second_object: Simstack object to merge into self.
+        :param merge_z: Is True if stacked in redshift chunks.
+        :return: second_object merged into self.
+        '''
 
         wavelength_keys = list(self.results_dict['band_results_dict'].keys())
         wavelength_check = list(second_object.results_dict['band_results_dict'].keys())
@@ -62,6 +68,11 @@ class SimstackToolbox(SimstackCosmologyEstimators):
                     second_object.results_dict['band_results_dict'][key])
 
     def construct_longname(self, basename):
+        ''' Use parameters in config file to create a "longname" which directories and files are named.
+
+        :param basename: customizable "shortname" that proceeds the generic longname.
+        :return longname: name used for directory and pickle file.
+        '''
         try:
             type_suffix = self.config_dict['catalog']['classification']['split_type']
         except:
@@ -69,7 +80,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         dist_bins = json.loads(self.config_dict['catalog']['classification']['redshift']['bins'])
         dist_suffix = "_".join([str(i).replace('.', 'p') for i in dist_bins]).replace('p0_', '_')
-        #dist_suffix = "_".join([str(len(dist_bins)-1), 'redshift_bins'])
         foreground_suffix = ''
         at_once_suffix = 'layers'
         bootstrap_suffix = ''
@@ -78,8 +88,8 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         if 'stellar_mass' in self.config_dict['catalog']['classification']:
             mass_bins = json.loads(self.config_dict['catalog']['classification']['stellar_mass']['bins'])
             stellar_mass_suffix = "_".join(['X', str(len(mass_bins)-1)])
-        if 'add_background' in self.config_dict['general']['binning']:
-            if self.config_dict['general']['binning']['add_background'] or self.config_dict['general']['binning']['add_foreground']:
+        if 'add_foreground' in self.config_dict['general']['binning']:
+            if self.config_dict['general']['binning']['add_foreground']:
                 foreground_suffix = 'foregnd'
         if 'stack_all_z_at_once' in self.config_dict['general']['binning']:
             if self.config_dict['general']['binning']['stack_all_z_at_once']:
@@ -99,12 +109,16 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         else:
             longname = "_".join([basename, type_suffix, dist_suffix, stellar_mass_suffix, foreground_suffix,
                                  at_once_suffix, bootstrap_suffix, shuffle_suffix])
-        #pdb.set_trace()
         self.config_dict['io']['longname'] = longname
         return longname
 
     def copy_config_file(self, fp_in, overwrite_results=False):
-        '''Copy Parameter File Right Away'''
+        ''' Place copy of config file into longname directory immediately (if you wait it may have been modified before
+        stacking is complete)
+
+        :param fp_in: path to config file.
+        :param overwrite_results: Overwrite existing if True.
+        '''
 
         if 'shortname' in self.config_dict['io']:
             shortname = self.config_dict['io']['shortname']
@@ -135,6 +149,13 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         self.config_dict['io']['config_ini'] = fp_out
 
     def save_stacked_fluxes(self, drop_maps=True, drop_catalogs=False):
+        ''' Save pickle containing raw stacked flux results. Optionally drop maps/catalogs to save space.
+
+        :param drop_maps: If True drops maps object.
+        :param drop_catalogs: If True drops catalog object.
+        :return: Save pickle to saved_data_path in config file.
+        '''
+
         if 'drop_maps' in self.config_dict['io']:
             drop_maps = self.config_dict['io']['drop_maps']
         if 'drop_catalogs' in self.config_dict['io']:
@@ -188,7 +209,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             pickle.dump(save_file, pickle_file_path)
 
     def parse_path(self, path_in):
-        # print(path_in)
+
         path_in = path_in.split(" ")
         if len(path_in) == 1:
             return path_in[0]
@@ -209,13 +230,12 @@ class SimstackToolbox(SimstackCosmologyEstimators):
     def split_bootstrap_labels(self, labels):
         labels_out = []
         for ilabel in labels:
-            if 'background' in ilabel:
+            if ('foreground' in ilabel) or ('background' in ilabel):
                 labels_out.append(ilabel)
             else:
-                # labels_out.append(ilabel+'__bootstrap1')
                 labels_out.append(ilabel)
                 labels_out.append(ilabel + '__bootstrap2')
-        # pdb.set_trace()
+
         return labels_out
 
     def get_params_dict(self, param_file_path):
@@ -441,16 +461,6 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return sigma_cv
 
-    def estimate_quadri_correction(self, z, m):
-        # uVista Completeness
-        #p = np.array([20.00, 5.186, 6.389, 24.539])
-        # this matches:  -3.55 * 1e8 * (1 + z) + 2.70 * 1e8 * (1 + z) ** 2.0
-        #p = np.array([65.400, 5.186, 20, 25.539])
-        # this matches Weaver2022: -1.51 * 1e6 * (1 + zin) + 6.81 * 1e7 * (1 + zin) ** 2
-        p = np.array([160, 5.186, 39, 30])
-        corr = 1 - 1 / (1 + np.exp(-p[1] * (z - p[0]) + p[2] * (-p[3] + m)))
-        return corr
-
     def estimate_nuInu(self, wavelength_um, flux_Jy, area_deg2, ngals, completeness=1):
         area_sr = (area_deg2 / (180. / np.pi) ** 2.) / (4. * np.pi)
         return 1e-1 * flux_Jy * (self.lambda_to_ghz(wavelength_um) * 1e9) * 1e-26 * 1e9 / area_sr * ngals / completeness
@@ -509,26 +519,7 @@ class SimstackToolbox(SimstackCosmologyEstimators):
             if np.shape(covar) == np.shape(fluxes):
                 return delta_y ** 2 / covar
             else:
-                #pdb.set_trace()
-                #return np.matmul(delta_y, np.matmul(np.linalg.inv(covar), delta_y))
                 return np.matmul(delta_y**2, np.linalg.inv(covar))
-                #return delta_y ** 2 / np.diag(covar)
-
-    def find_sed_min_old(self, params, wavelengths, fluxes, covar=None):
-
-        graybody = self.fast_sed(params, wavelengths)[0]
-        #pdb.set_trace()
-        return (fluxes - graybody)
-
-    def find_sed_min_add_noise(self, p, wavelengths, fluxes, covar=None):
-
-        graybody = self.fast_sed(p, wavelengths)[0]
-
-        if (covar is None) or (np.sum(covar) == 0):
-            return (fluxes - graybody)
-        else:
-            #covar_use = np.min(np.array([np.sqrt(covar), np.sqrt(np.sqrt(fluxes**2))]), axis=0)
-            return (fluxes + 1 * np.sqrt(covar) * np.random.randn(len(covar))) - graybody
 
     def fast_L850(self, flux850, zin):
         '''This calls graybody_fn instead of fast_sed'''
