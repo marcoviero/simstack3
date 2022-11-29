@@ -376,9 +376,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
                 name_layer = 'layer_'+str(umap)+'.fits'
-                hdu = fits.PrimaryHDU(tmap, header=hd)
-                hdul = fits.HDUList([hdu])
-                hdul.writeto(os.path.join(path_layer, name_layer))
+                name_layer = '{0}__fwhm_{1:0.1f}'.format(trimmed_labels[umap], fwhm).replace('.','p')+'.fits'
+                if 'foreground_layer' not in trimmed_labels[umap]:
+                    hdu = fits.PrimaryHDU(tmap, header=hd)
+                    hdul = fits.HDUList([hdu])
+                    hdul.writeto(os.path.join(path_layer, name_layer), overwrite=True)
 
             # Remove mean from map
             cfits_maps[umap, :] = tmap[ind_fit] - np.mean(tmap[ind_fit])
