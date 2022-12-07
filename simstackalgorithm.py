@@ -341,7 +341,8 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             radius = 1.1
             flattened_pixmap = np.sum(layers, axis=0)
             total_circles_mask = self.circle_mask(flattened_pixmap, radius * fwhm, pix)
-            ind_fit = np.where(total_circles_mask >= 1)
+            #ind_fit = np.where(total_circles_mask >= 1)
+            ind_fit = np.where((total_circles_mask >= 1) & (cmap != 0))
         else:
             ind_fit = np.where(0 * np.sum(layers, axis=0) == 0)
 
@@ -375,10 +376,15 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             # write layers to fits files here
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
-                name_layer = 'layer_'+str(umap)+'.fits'
                 name_layer = '{0}__fwhm_{1:0.1f}'.format(trimmed_labels[umap], fwhm).replace('.','p')+'.fits'
+                #name_layer = '{0}__pix_{1:0.1f}'.format(trimmed_labels[umap], pix).replace('.','p')+'.fits'
                 if 'foreground_layer' not in trimmed_labels[umap]:
-                    hdu = fits.PrimaryHDU(tmap, header=hd)
+                    tmask = np.ones_like(tmap)*total_circles_mask
+                    ind_edge = cmap == 0
+                    if np.sum(ind_edge):
+                        tmask[ind_edge] = 0
+                    hdu = fits.PrimaryHDU(tmap*tmask, header=hd)
+                    #hdu = fits.PrimaryHDU(layer*tmask, header=hd)
                     hdul = fits.HDUList([hdu])
                     hdul.writeto(os.path.join(path_layer, name_layer), overwrite=True)
 
