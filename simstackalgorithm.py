@@ -376,6 +376,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             # write layers to fits files here
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
+                path_layer = os.path.join(os.environ['MAPSPATH'],'cutouts','layers')
                 name_layer = '{0}__fwhm_{1:0.1f}'.format(trimmed_labels[umap], fwhm).replace('.','p')+'.fits'
                 #name_layer = '{0}__pix_{1:0.1f}'.format(trimmed_labels[umap], pix).replace('.','p')+'.fits'
                 if 'foreground_layer' not in trimmed_labels[umap]:
