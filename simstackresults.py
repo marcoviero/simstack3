@@ -55,6 +55,124 @@ class SimstackResults(SimstackToolbox):
 		sed_flux_array = np.zeros([len(wavelength_keys), *ds])
 		sed_error_array = np.zeros([len(wavelength_keys), *ds])
 
+		for ik, key in enumerate(wavelength_keys):
+			self.results_dict['band_results_dict'][key]['raw_fluxes_dict'] = {}
+
+			wavelengths.append(self.config_dict['maps'][key]['wavelength'])
+
+			len_results_dict_keys = np.sum(
+				['flux_densities' in i for i in self.results_dict['band_results_dict'][key].keys()])
+			flux_array = np.zeros([len_results_dict_keys, *ds])
+			outlier_array = np.zeros([len_results_dict_keys, *ds])
+			error_array = np.zeros(ds)
+
+			# pdb.set_trace()
+			for iboot in np.arange(len_results_dict_keys):
+				if not iboot:
+					boot_label = 'stacked_flux_densities'
+				else:
+					boot_label = 'bootstrap_flux_densities_' + str(int(iboot))
+
+				results_object = self.results_dict['band_results_dict'][key][boot_label]
+
+				for z, zval in enumerate(self.config_dict['catalog']['distance_labels']):
+					for i, ival in enumerate(label_dict[label_keys[1]]):
+						if len(label_keys) > 2:
+							for j, jval in enumerate(label_dict[label_keys[2]]):
+								if len(label_keys) > 3:
+									for k, kval in enumerate(label_dict[label_keys[3]]):
+										if len(label_keys) > 4:
+											for l, lval in enumerate(label_dict[label_keys[4]]):
+												if len(label_keys) > 5:
+													for m, mval in enumerate(label_dict[label_keys[5]]):
+														label = "__".join([zval, ival, jval, kval, lval, mval]).replace('.', 'p')
+														# CHECK THAT LABEL EXISTS FIRST
+														if label in results_object:
+															if label + '__bootstrap2' in results_object:
+																outlier_array[iboot, z, i, j, k, l, m] = results_object[
+																	label].value
+																flux_array[iboot, z, i, j, k, l, m] = results_object[
+																	label + '__bootstrap2'].value
+															else:
+																flux_array[iboot, z, i, j, k, l, m] = results_object[
+																	label].value
+															# print("{0} = {1:0.2e}".format(label, results_object[label].value))
+
+															if len_results_dict_keys == 1:
+																error_array[z, i, j, k, l, m] = results_object[
+																	label].stderr
+												else:
+													label = "__".join([zval, ival, jval, kval, lval]).replace('.', 'p')
+													# CHECK THAT LABEL EXISTS FIRST
+													if label in results_object:
+														if label + '__bootstrap2' in results_object:
+															outlier_array[iboot, z, i, j, k, l] = results_object[
+																label].value
+															flux_array[iboot, z, i, j, k, l] = results_object[
+																label + '__bootstrap2'].value
+														else:
+															flux_array[iboot, z, i, j, k, l] = results_object[label].value
+														# print("{0} = {1:0.2e}".format(label, results_object[label].value))
+
+														if len_results_dict_keys == 1:
+															error_array[z, i, j, k, l] = results_object[label].stderr
+										else:
+											label = "__".join([zval, ival, jval, kval]).replace('.', 'p')
+											# CHECK THAT LABEL EXISTS FIRST
+											if label in results_object:
+												if label + '__bootstrap2' in results_object:
+													outlier_array[iboot, z, i, j, k] = results_object[label].value
+													flux_array[iboot, z, i, j, k] = results_object[
+														label + '__bootstrap2'].value
+												else:
+													flux_array[iboot, z, i, j, k] = results_object[label].value
+												# print("{0} = {1:0.2e}".format(label, results_object[label].value))
+
+												if len_results_dict_keys == 1:
+													error_array[z, i, j, k] = results_object[label].stderr
+								else:
+									label = "__".join([zval, ival, jval]).replace('.', 'p')
+									# CHECK THAT LABEL EXISTS FIRST
+									if label in results_object:
+										if label + '__bootstrap2' in results_object:
+											outlier_array[iboot, z, i, j] = results_object[label].value
+											flux_array[iboot, z, i, j] = results_object[label + '__bootstrap2'].value
+										else:
+											flux_array[iboot, z, i, j] = results_object[label].value
+
+										if len_results_dict_keys == 1:
+											error_array[z, i, j] = results_object[label].stderr
+						else:
+							label = "__".join([zval, ival]).replace('.', 'p')
+							if label in results_object:
+								if label + '__bootstrap2' in results_object:
+									outlier_array[iboot, z, i] = results_object[label].value
+									flux_array[iboot, z, i] = results_object[label + '__bootstrap2'].value
+								else:
+									flux_array[iboot, z, i] = results_object[label].value
+
+								if len_results_dict_keys == 1:
+									error_array[z, i] = results_object[label].stderr
+
+			# pdb.set_trace()
+			sed_flux_array[ik] = flux_array[0]
+			sed_error_array[ik] = np.std(flux_array, axis=0)
+
+		return {'flux': sed_flux_array, 'error': sed_error_array, 'wavelengths': wavelengths}
+
+	def parse_fluxes_old(self):
+
+		wavelength_keys = list(self.results_dict['band_results_dict'].keys())
+		wavelengths = []
+		split_dict = self.config_dict['catalog']['classification']
+		# split_type = split_dict.pop('split_type')
+		label_keys = list(split_dict.keys())
+		label_dict = self.config_dict['parameter_names']
+		ds = [len(label_dict[k]) for k in label_dict]
+
+		sed_flux_array = np.zeros([len(wavelength_keys), *ds])
+		sed_error_array = np.zeros([len(wavelength_keys), *ds])
+
 		for k, key in enumerate(wavelength_keys):
 			self.results_dict['band_results_dict'][key]['raw_fluxes_dict'] = {}
 

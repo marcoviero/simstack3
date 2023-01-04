@@ -117,19 +117,33 @@ class Skycatalogs:
 		# Name Cube Layers (i.e., parameters)
 		self.catalog_dict['tables']['parameter_labels'] = []
 		for ipar in parameter_names[label_keys[0]]:
-			for jpar in parameter_names[label_keys[1]]:
-				if len(label_keys) > 2:
-					for kpar in parameter_names[label_keys[2]]:
-						if len(label_keys) > 3:
-							for lpar in parameter_names[label_keys[3]]:
-								pn = "__".join([ipar, jpar, kpar, lpar])
+			if len(label_keys) > 1:
+				for jpar in parameter_names[label_keys[1]]:
+					if len(label_keys) > 2:
+						for kpar in parameter_names[label_keys[2]]:
+							if len(label_keys) > 3:
+								for lpar in parameter_names[label_keys[3]]:
+									if len(label_keys) > 4:
+										for mpar in parameter_names[label_keys[4]]:
+											if len(label_keys) > 5:
+												for npar in parameter_names[label_keys[5]]:
+													pn = "__".join([ipar, jpar, kpar, lpar, mpar, npar])
+													self.catalog_dict['tables']['parameter_labels'].append(pn)
+											else:
+												pn = "__".join([ipar, jpar, kpar, lpar, mpar])
+												self.catalog_dict['tables']['parameter_labels'].append(pn)
+									else:
+										pn = "__".join([ipar, jpar, kpar, lpar])
+										self.catalog_dict['tables']['parameter_labels'].append(pn)
+							else:
+								pn = "__".join([ipar, jpar, kpar])
 								self.catalog_dict['tables']['parameter_labels'].append(pn)
-						else:
-							pn = "__".join([ipar, jpar, kpar])
-							self.catalog_dict['tables']['parameter_labels'].append(pn)
-				else:
-					pn = "__".join([ipar, jpar])
-					self.catalog_dict['tables']['parameter_labels'].append(pn)
+					else:
+						pn = "__".join([ipar, jpar])
+						self.catalog_dict['tables']['parameter_labels'].append(pn)
+			else:
+				pn = "__".join([ipar])
+				self.catalog_dict['tables']['parameter_labels'].append(pn)
 		if add_foreground:
 			self.catalog_dict['tables']['parameter_labels'].append('foreground_layer')
 

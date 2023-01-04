@@ -186,6 +186,7 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
 
         label_dict = self.config_dict['parameter_names']
         ds = [len(label_dict[k]) for k in label_dict]
+
         if (len(labels) - add_foreground) == np.prod(ds[1:]):
             nlists = ds[1:]
             llists = np.prod(nlists)
@@ -195,9 +196,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         elif (len(labels) - add_foreground)/2 == np.prod(ds):
             nlists = ds
             llists = 2 * np.prod(nlists)
-        else:
+        elif (len(labels) - add_foreground) == np.prod(ds):
             nlists = ds
             llists = np.prod(nlists)
+            #pdb.set_trace()
 
         # STEP 1  - Make Layers Cube
         layers = np.zeros([llists, cms[0], cms[1]])
@@ -210,46 +212,201 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
                 for jpop in range(nlists[1]):
                     if len(nlists) > 2:
                         for kpop in range(nlists[2]):
-                            ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & (catalog[keys[2]] == kpop)
-                            if bootstrap:
-                                if sum(ind_src) > 4:
-                                    real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                                    bt_split = 0.80
-                                    #jk_split = np.random.uniform(0.3, 0.7)
-                                    #print('jackknife split = ', jk_split)
-                                    left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
-                                                                                        test_size=bt_split,
-                                                                                        random_state=int(bootstrap),
-                                                                                        shuffle=True)
-                                    layers[ilayer, left_x, left_y] += 1.0
-                                    layers[ilayer + 1, right_x, right_y] += 1.0
-                                    #layers[ilayer, right_x, right_y] += 1.0
-                                    #layers[ilayer + 1, left_x, left_y] += 1.0
-                                    trimmed_labels.append(labels[ilabel])
-                                    trimmed_labels.append(labels[ilabel + 1])
-                                    ilayer += 2
-                                else:
-                                    layers = np.delete(layers, ilayer+1, 0)
-                                    layers = np.delete(layers, ilayer, 0)
-                                ilabel += 2
+                            if len(nlists) > 3:
+                                for lpop in range(nlists[3]):
+                                    if len(nlists) > 4:
+                                        for mpop in range(nlists[4]):
+                                            if len(nlists) > 5:
+                                                for npop in range(nlists[5]):
+                                                    ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & \
+                                                              (catalog[keys[2]] == kpop) & (catalog[keys[3]] == lpop) & \
+                                                              (catalog[keys[4]] == mpop) & (catalog[keys[5]] == npop)
+                                                    if bootstrap:
+                                                        if sum(ind_src) > 4:
+                                                            real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms,
+                                                                                                      ind_src,
+                                                                                                      ra_series,
+                                                                                                      dec_series)
+                                                            bt_split = 0.80
+                                                            # jk_split = np.random.uniform(0.3, 0.7)
+                                                            # print('jackknife split = ', jk_split)
+                                                            left_x, right_x, left_y, right_y = \
+                                                                train_test_split(real_x, real_y, test_size=bt_split,
+                                                                                 andom_state=int(bootstrap),
+                                                                                 shuffle=True)
+                                                            layers[ilayer, left_x, left_y] += 1.0
+                                                            layers[ilayer + 1, right_x, right_y] += 1.0
+                                                            # layers[ilayer, right_x, right_y] += 1.0
+                                                            # layers[ilayer + 1, left_x, left_y] += 1.0
+                                                            trimmed_labels.append(labels[ilabel])
+                                                            trimmed_labels.append(labels[ilabel + 1])
+                                                            ilayer += 2
+                                                        else:
+                                                            layers = np.delete(layers, ilayer + 1, 0)
+                                                            layers = np.delete(layers, ilayer, 0)
+                                                        ilabel += 2
+                                                    else:
+                                                        if sum(ind_src) > 0:
+                                                            real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms,
+                                                                                                      ind_src,
+                                                                                                      ra_series,
+                                                                                                      dec_series)
+                                                            if randomize:
+                                                                # print('Shuffling!',len(real_x))
+                                                                # print(real_x[0], real_y[0])
+                                                                # np.random.shuffle(real_x)
+                                                                # np.random.shuffle(real_y)
+                                                                real_x = np.random.random_integers(min(real_x),
+                                                                                                   max(real_x),
+                                                                                                   len(real_x))
+                                                                real_y = np.random.random_integers(min(real_y),
+                                                                                                   max(real_y),
+                                                                                                   len(real_y))
+                                                                # pdb.set_trace()
+                                                                # print(real_x[0], real_y[0])
+                                                            layers[ilayer, real_x, real_y] += 1.0
+                                                            trimmed_labels.append(labels[ilabel])
+                                                            ilayer += 1
+                                                        else:
+                                                            layers = np.delete(layers, ilayer, 0)
+                                                        ilabel += 1
+                                            else:
+
+                                                ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & \
+                                                          (catalog[keys[2]] == kpop) & (catalog[keys[3]] == lpop) & \
+                                                          (catalog[keys[4]] == mpop)
+                                                if bootstrap:
+                                                    if sum(ind_src) > 4:
+                                                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src,
+                                                                                                  ra_series,
+                                                                                                  dec_series)
+                                                        bt_split = 0.80
+                                                        # jk_split = np.random.uniform(0.3, 0.7)
+                                                        # print('jackknife split = ', jk_split)
+                                                        left_x, right_x, left_y, right_y = \
+                                                            train_test_split(real_x, real_y, test_size=bt_split,
+                                                                             andom_state=int(bootstrap),shuffle=True)
+                                                        layers[ilayer, left_x, left_y] += 1.0
+                                                        layers[ilayer + 1, right_x, right_y] += 1.0
+                                                        # layers[ilayer, right_x, right_y] += 1.0
+                                                        # layers[ilayer + 1, left_x, left_y] += 1.0
+                                                        trimmed_labels.append(labels[ilabel])
+                                                        trimmed_labels.append(labels[ilabel + 1])
+                                                        ilayer += 2
+                                                    else:
+                                                        layers = np.delete(layers, ilayer + 1, 0)
+                                                        layers = np.delete(layers, ilayer, 0)
+                                                    ilabel += 2
+                                                else:
+                                                    if sum(ind_src) > 0:
+                                                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src,
+                                                                                                  ra_series,
+                                                                                                  dec_series)
+                                                        if randomize:
+                                                            # print('Shuffling!',len(real_x))
+                                                            # print(real_x[0], real_y[0])
+                                                            # np.random.shuffle(real_x)
+                                                            # np.random.shuffle(real_y)
+                                                            real_x = np.random.random_integers(min(real_x), max(real_x),
+                                                                                               len(real_x))
+                                                            real_y = np.random.random_integers(min(real_y), max(real_y),
+                                                                                               len(real_y))
+                                                            # pdb.set_trace()
+                                                            # print(real_x[0], real_y[0])
+                                                        layers[ilayer, real_x, real_y] += 1.0
+                                                        trimmed_labels.append(labels[ilabel])
+                                                        ilayer += 1
+                                                    else:
+                                                        layers = np.delete(layers, ilayer, 0)
+                                                    ilabel += 1
+                                    else:
+                                        ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & (
+                                                    catalog[keys[2]] == kpop) & (catalog[keys[3]] == lpop)
+                                        if bootstrap:
+                                            if sum(ind_src) > 4:
+                                                real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series,
+                                                                                          dec_series)
+                                                bt_split = 0.80
+                                                # jk_split = np.random.uniform(0.3, 0.7)
+                                                # print('jackknife split = ', jk_split)
+                                                left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
+                                                                                                    test_size=bt_split,
+                                                                                                    random_state=int(
+                                                                                                        bootstrap),
+                                                                                                    shuffle=True)
+                                                layers[ilayer, left_x, left_y] += 1.0
+                                                layers[ilayer + 1, right_x, right_y] += 1.0
+                                                # layers[ilayer, right_x, right_y] += 1.0
+                                                # layers[ilayer + 1, left_x, left_y] += 1.0
+                                                trimmed_labels.append(labels[ilabel])
+                                                trimmed_labels.append(labels[ilabel + 1])
+                                                ilayer += 2
+                                            else:
+                                                layers = np.delete(layers, ilayer + 1, 0)
+                                                layers = np.delete(layers, ilayer, 0)
+                                            ilabel += 2
+                                        else:
+                                            if sum(ind_src) > 0:
+                                                real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series,
+                                                                                          dec_series)
+                                                if randomize:
+                                                    # print('Shuffling!',len(real_x))
+                                                    # print(real_x[0], real_y[0])
+                                                    # np.random.shuffle(real_x)
+                                                    # np.random.shuffle(real_y)
+                                                    real_x = np.random.random_integers(min(real_x), max(real_x),
+                                                                                       len(real_x))
+                                                    real_y = np.random.random_integers(min(real_y), max(real_y),
+                                                                                       len(real_y))
+                                                    # pdb.set_trace()
+                                                    # print(real_x[0], real_y[0])
+                                                layers[ilayer, real_x, real_y] += 1.0
+                                                trimmed_labels.append(labels[ilabel])
+                                                ilayer += 1
+                                            else:
+                                                layers = np.delete(layers, ilayer, 0)
+                                            ilabel += 1
                             else:
-                                if sum(ind_src) > 0:
-                                    real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
-                                    if randomize:
-                                        #print('Shuffling!',len(real_x))
-                                        #print(real_x[0], real_y[0])
-                                        #np.random.shuffle(real_x)
-                                        #np.random.shuffle(real_y)
-                                        real_x = np.random.random_integers(min(real_x), max(real_x), len(real_x))
-                                        real_y = np.random.random_integers(min(real_y), max(real_y), len(real_y))
-                                        #pdb.set_trace()
-                                        #print(real_x[0], real_y[0])
-                                    layers[ilayer, real_x, real_y] += 1.0
-                                    trimmed_labels.append(labels[ilabel])
-                                    ilayer += 1
+                                ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop) & (catalog[keys[2]] == kpop)
+                                if bootstrap:
+                                    if sum(ind_src) > 4:
+                                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                        bt_split = 0.80
+                                        #jk_split = np.random.uniform(0.3, 0.7)
+                                        #print('jackknife split = ', jk_split)
+                                        left_x, right_x, left_y, right_y = train_test_split(real_x, real_y,
+                                                                                            test_size=bt_split,
+                                                                                            random_state=int(bootstrap),
+                                                                                            shuffle=True)
+                                        layers[ilayer, left_x, left_y] += 1.0
+                                        layers[ilayer + 1, right_x, right_y] += 1.0
+                                        #layers[ilayer, right_x, right_y] += 1.0
+                                        #layers[ilayer + 1, left_x, left_y] += 1.0
+                                        trimmed_labels.append(labels[ilabel])
+                                        trimmed_labels.append(labels[ilabel + 1])
+                                        ilayer += 2
+                                    else:
+                                        layers = np.delete(layers, ilayer+1, 0)
+                                        layers = np.delete(layers, ilayer, 0)
+                                    ilabel += 2
                                 else:
-                                    layers = np.delete(layers, ilayer, 0)
-                                ilabel += 1
+                                    if sum(ind_src) > 0:
+                                        real_x, real_y = self.get_x_y_from_ra_dec(wmap, cms, ind_src, ra_series, dec_series)
+                                        if randomize:
+                                            #print('Shuffling!',len(real_x))
+                                            #print(real_x[0], real_y[0])
+                                            #np.random.shuffle(real_x)
+                                            #np.random.shuffle(real_y)
+                                            real_x = np.random.random_integers(min(real_x), max(real_x), len(real_x))
+                                            real_y = np.random.random_integers(min(real_y), max(real_y), len(real_y))
+                                            #pdb.set_trace()
+                                            #print(real_x[0], real_y[0])
+                                        layers[ilayer, real_x, real_y] += 1.0
+                                        trimmed_labels.append(labels[ilabel])
+                                        ilayer += 1
+                                    else:
+                                        layers = np.delete(layers, ilayer, 0)
+                                    ilabel += 1
                     else:
                         ind_src = (catalog[keys[0]] == ipop) & (catalog[keys[1]] == jpop)
                         if bootstrap:
@@ -376,9 +533,11 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if write_fits_layers:
                 path_layer = r'D:\maps\cutouts\layers'
                 name_layer = 'layer_'+str(umap)+'.fits'
-                hdu = fits.PrimaryHDU(tmap, header=hd)
-                hdul = fits.HDUList([hdu])
-                hdul.writeto(os.path.join(path_layer, name_layer))
+                name_layer = '{0}__fwhm_{1:0.1f}'.format(trimmed_labels[umap], fwhm).replace('.','p')+'.fits'
+                if 'foreground_layer' not in trimmed_labels[umap]:
+                    hdu = fits.PrimaryHDU(tmap, header=hd)
+                    hdul = fits.HDUList([hdu])
+                    hdul.writeto(os.path.join(path_layer, name_layer), overwrite=True)
 
             # Remove mean from map
             cfits_maps[umap, :] = tmap[ind_fit] - np.mean(tmap[ind_fit])
@@ -485,7 +644,10 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
             if not labels:
                 parameter_label = self.catalog_dict['tables']['parameter_labels'][iarg].replace('.', 'p')
             else:
-                parameter_label = labels[iarg].replace('.', 'p')
+                try:
+                    parameter_label = labels[iarg].replace('.', 'p')
+                except:
+                    pdb.set_trace()
             # Add parameter
             fit_params.add(parameter_label, value=1e-3 * np.random.randn())
 
