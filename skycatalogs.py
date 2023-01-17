@@ -98,18 +98,23 @@ class Skycatalogs:
 		parameter_names = {}
 		label_keys = list(split_dict.keys())
 		for key in label_keys:
+			#print(key)
 			if type(split_dict[key]['bins']) is str:
 				bins = json.loads(split_dict[key]['bins'])
-				parameter_names[key] = ["_".join([key, str(bins[i]), str(bins[i + 1])]) for i in range(len(bins[:-1]))]
+				parameter_names[key] = ["_".join([key, str(bins[i]), str(bins[i + 1])]).replace('-','n') for i in range(len(bins[:-1]))]
 			elif type(split_dict[key]['bins']) is dict:
 				bins = len(split_dict[key]['bins'])
-				parameter_names[key] = ["_".join([key, str(i)]) for i in range(bins)]
+				parameter_names[key] = ["_".join([key, str(i)]).replace('-','n') for i in range(bins)]
 			else:
 				bins = split_dict[key]['bins']
-				parameter_names[key] = ["_".join([key, str(i)]) for i in range(bins)]
+				parameter_names[key] = ["_".join([key, str(i)]).replace('-','n') for i in range(bins)]
 
 			# Categorize using pandas.cut.  So good.
-			col = pd.cut(table[split_dict[key]['id']], bins=bins, labels=False)
+			if 'log' in split_dict[key]:
+				log_min = float(split_dict[key]['log'])
+				col = pd.cut(np.log10(table[split_dict[key]['id']]+log_min), bins=bins, labels=False)
+			else:
+				col = pd.cut(table[split_dict[key]['id']], bins=bins, labels=False)
 			col.name = key  # Rename column to label
 			# Add column to table
 			self.catalog_dict['tables']['split_table'] = self.catalog_dict['tables']['split_table'].join(col)
