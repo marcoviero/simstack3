@@ -77,7 +77,7 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
                     fit_params_init.add('A_slope_' + key + '_sf',
                                        value=self.init_dict['A']['sf']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_' + key])
+                                       value=self.init_dict['T']['sf']['slope_' + key])
 
             # Perform FluctFit
             #pdb.set_trace()
@@ -99,11 +99,11 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
                     fit_params_init.add('A_slope_' + key + '_sf',
                                        value=self.init_dict['A']['sf']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_' + key])
+                                       value=self.init_dict['T']['sf']['slope_' + key])
                     fit_params_init.add('A_slope_' + key + '_qt',
                                        value=self.init_dict['A']['sf']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['sf']['slope_' + key])
+                                       value=self.init_dict['T']['sf']['slope_' + key])
 
             # Perform FluctFit
             #pdb.set_trace()
@@ -127,15 +127,15 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
                     fit_params_init.add('A_slope_' + key + '_sf',
                                        value=self.init_dict['A']['sf']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_' + key])
+                                       value=self.init_dict['T']['sf']['slope_' + key])
                     fit_params_init.add('A_slope_' + key + '_qt',
                                        value=self.init_dict['A']['qt']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['qt']['slope_' + key])
+                                       value=self.init_dict['T']['qt']['slope_' + key])
                     fit_params_init.add('A_slope_' + key + '_agn',
                                        value=self.init_dict['A']['agn']['slope_' + key])
                     fit_params_init.add('T_slope_' + key + '_agn',
-                                       value=self.init_dict['A']['agn']['slope_' + key])
+                                       value=self.init_dict['T']['agn']['slope_' + key])
 
             # Perform FluctFit
             #pdb.set_trace()
