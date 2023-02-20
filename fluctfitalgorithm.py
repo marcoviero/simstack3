@@ -68,76 +68,78 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
         t0 = time.time()
         if len(self.datacube_dict['populations']) == 1:
             # Define Fit Parameters
-            fit_params_sfg = Parameters()
-            fit_params_sfg.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
-            fit_params_sfg.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
+            fit_params_init = Parameters()
+            fit_params_init.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
+            fit_params_init.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
 
             for key, val in self.config_dict['catalog']['classification'].items():
                 if 'split_params' not in key:
-                    fit_params_sfg.add('A_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
+                    fit_params_init.add('A_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
 
             # Perform FluctFit
-
-            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_one_pop, fit_params_sfg,
+            #pdb.set_trace()
+            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_one_pop, fit_params_init,
                                                            args=(self.datacube_dict['datacube'].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
 
         if len(self.datacube_dict['populations']) == 2:
             # Define Fit Parameters
-            fit_params_sfg = Parameters()
-            fit_params_sfg.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
-            fit_params_sfg.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
-            fit_params_sfg.add('A_offset_qt', value=self.init_dict['A']['qt']['offset'])
-            fit_params_sfg.add('T_offset_qt', value=self.init_dict['T']['qt']['offset'])
+            fit_params_init = Parameters()
+            fit_params_init.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
+            fit_params_init.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
+            fit_params_init.add('A_offset_qt', value=self.init_dict['A']['qt']['offset'])
+            fit_params_init.add('T_offset_qt', value=self.init_dict['T']['qt']['offset'])
 
             for key, val in self.config_dict['catalog']['classification'].items():
                 if 'split_params' not in key:
-                    fit_params_sfg.add('A_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('A_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
+                    fit_params_init.add('A_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('A_slope_' + key + '_qt',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_qt',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
 
             # Perform FluctFit
-            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_two_pop, fit_params_sfg,
+            #pdb.set_trace()
+            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_two_pop, fit_params_init,
                                                            args=(self.datacube_dict['datacube'].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
 
         if len(self.datacube_dict['populations']) == 3:
             # Define Fit Parameters
-            fit_params_sfg = Parameters()
-            fit_params_sfg.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
-            fit_params_sfg.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
-            fit_params_sfg.add('A_offset_qt', value=self.init_dict['A']['qt']['offset'])
-            fit_params_sfg.add('T_offset_qt', value=self.init_dict['T']['qt']['offset'])
-            fit_params_sfg.add('A_offset_agn', value=self.init_dict['A']['agn']['offset'])
-            fit_params_sfg.add('T_offset_agn', value=self.init_dict['T']['agn']['offset'])
+            fit_params_init = Parameters()
+            fit_params_init.add('A_offset_sf', value=self.init_dict['A']['sf']['offset'])
+            fit_params_init.add('T_offset_sf', value=self.init_dict['T']['sf']['offset'])
+            fit_params_init.add('A_offset_qt', value=self.init_dict['A']['qt']['offset'])
+            fit_params_init.add('T_offset_qt', value=self.init_dict['T']['qt']['offset'])
+            fit_params_init.add('A_offset_agn', value=self.init_dict['A']['agn']['offset'])
+            fit_params_init.add('T_offset_agn', value=self.init_dict['T']['agn']['offset'])
 
             for key, val in self.config_dict['catalog']['classification'].items():
                 if 'split_params' not in key:
-                    fit_params_sfg.add('A_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_sf',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('A_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_qt',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('A_slope_' + key + '_agn',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
-                    fit_params_sfg.add('T_slope_' + key + '_agn',
-                                       value=self.init_dict['A']['sf']['slope_redshift'])
+                    fit_params_init.add('A_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_sf',
+                                       value=self.init_dict['A']['sf']['slope_' + key])
+                    fit_params_init.add('A_slope_' + key + '_qt',
+                                       value=self.init_dict['A']['qt']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_qt',
+                                       value=self.init_dict['A']['qt']['slope_' + key])
+                    fit_params_init.add('A_slope_' + key + '_agn',
+                                       value=self.init_dict['A']['agn']['slope_' + key])
+                    fit_params_init.add('T_slope_' + key + '_agn',
+                                       value=self.init_dict['A']['agn']['slope_' + key])
 
             # Perform FluctFit
-            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_three_pop, fit_params_sfg,
+            #pdb.set_trace()
+            self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_three_pop, fit_params_init,
                                                            args=(self.datacube_dict['datacube'].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
