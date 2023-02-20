@@ -694,31 +694,6 @@ class SimstackAlgorithm(SimstackToolbox, Skymaps, Skycatalogs):
         else:
             return (data1d - model) / err1d
 
-    def get_x_y_from_ra_dec(self,
-                            wmap,
-                            cms,
-                            ind_src,
-                            ra_series,
-                            dec_series):
-        ''' Get x and y positions from ra, dec, and header.
 
-        :param wmap: astropy object
-        :param cms: map dimensions
-        :param ind_src: sources indicies
-        :param ra_series: ra
-        :param dec_series: dec
-        :return: x, y
-        '''
-
-        ra = ra_series[ind_src].values
-        dec = dec_series[ind_src].values
-        # CONVERT FROM RA/DEC to X/Y
-        ty, tx = wmap.wcs_world2pix(ra, dec, 0)
-        # CHECK FOR SOURCES THAT FALL OUTSIDE MAP
-        ind_keep = np.where((tx >= 0) & (np.round(tx) < cms[0]) & (ty >= 0) & (np.round(ty) < cms[1]))
-        real_x = np.round(tx[ind_keep]).astype(int)
-        real_y = np.round(ty[ind_keep]).astype(int)
-
-        return real_x, real_y
 
 

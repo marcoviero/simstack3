@@ -6,6 +6,7 @@ import pickle
 import json
 import numpy as np
 from astropy.io import fits
+#from astropy.wcs import WCS
 from configparser import ConfigParser
 from lmfit import Parameters, minimize, fit_report
 from scipy.ndimage.filters import gaussian_filter
@@ -278,6 +279,55 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         # Write config_filename_out (check if overwriting externally)
         with open(config_filename_out, 'w') as conf:
             config_out.write(conf)
+
+    def get_x_y_from_ra_dec(self,
+                            wmap,
+                            cms,
+                            ind_src,
+                            ra_series,
+                            dec_series):
+        ''' Get x and y positions from ra, dec, and header.
+
+        :param wmap: astropy object
+        :param cms: map dimensions
+        :param ind_src: sources indicies
+        :param ra_series: ra
+        :param dec_series: dec
+        :return: x, y
+        '''
+
+        ra = ra_series[ind_src].values
+        dec = dec_series[ind_src].values
+        # CONVERT FROM RA/DEC to X/Y
+        ty, tx = wmap.wcs_world2pix(ra, dec, 0)
+        # CHECK FOR SOURCES THAT FALL OUTSIDE MAP
+        ind_keep = np.where((tx >= 0) & (np.round(tx) < cms[0]) & (ty >= 0) & (np.round(ty) < cms[1]))
+        real_x = np.round(tx[ind_keep]).astype(int)
+        real_y = np.round(ty[ind_keep]).astype(int)
+
+        return real_x, real_y
+
+    def model_A_or_Tdust(self, params, X):
+        v = params.valuesdict().copy()
+        if 'A_offset' in v:
+            model = v.pop('A_offset')
+        elif 'T_offset' in v:
+            model = v.pop('T_offset')
+        if 'A_offset_sf' in v:
+            model = v.pop('A_offset_sf')
+        elif 'T_offset_sf' in v:
+            model = v.pop('T_offset_sf')
+        if 'A_offset_qt' in v:
+            model = v.pop('A_offset_qt')
+        elif 'T_offset_qt' in v:
+            model = v.pop('T_offset_qt')
+        if 'A_offset_agn' in v:
+            model = v.pop('A_offset_agn')
+        elif 'T_offset_agn' in v:
+            model = v.pop('T_offset_agn')
+        for i, ival in enumerate(v):
+            model += X[i] * v[ival]
+        return model
 
     def make_array_from_dict(self, input_dict, x=None):
         bin_keys = list(self.config_dict['parameter_names'].keys())
@@ -610,6 +660,30 @@ class SimstackToolbox(SimstackCosmologyEstimators):
         c = 2.9979e8  # ; m/s
 
         return 2 * h * (nu_in ** 3) / c ** 2 / (np.exp(h * nu_in / (k * T_in)) - 1)
+
+    def get_flux_mJy(self, nu_in, Ain, T, betain=1.8, alphain=2.0):
+
+        A = 10 ** Ain
+        ng = np.size(A)
+
+        ns = len(nu_in)
+        base = 2.0 * (6.626) ** (-2.0 - betain - alphain) * (1.38) ** (3. + betain + alphain) / (2.99792458) ** 2.0
+        expo = 34.0 * (2.0 + betain + alphain) - 23.0 * (3.0 + betain + alphain) - 16.0 + 26.0
+        K = base * 10.0 ** expo
+        w_num = A * K * (T * (3.0 + betain + alphain)) ** (3.0 + betain + alphain)
+        w_den = (np.exp(3.0 + betain + alphain) - 1.0)
+        w_div = w_num / w_den
+        nu_cut = (3.0 + betain + alphain) * 0.208367e11 * T
+
+        graybody = A * nu_in ** betain * self.black(nu_in, T)[:, 0] / 1000.
+        powerlaw = w_div * nu_in ** (-1.0 * alphain)
+        ind_cut = nu_in > nu_cut
+        # pdb.set_trace()
+        if np.sum(ind_cut):
+            graybody[ind_cut] = powerlaw[ind_cut]
+
+        # pdb.set_trace()
+        return graybody
 
     def clean_nans(self, dirty_array, replacement_char=0.0):
         clean_array = dirty_array.copy()
