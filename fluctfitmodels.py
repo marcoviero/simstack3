@@ -1,3 +1,5 @@
+import pdb
+
 import numpy as np
 from lmfit import Parameters, minimize, fit_report
 from simstacktoolbox import SimstackToolbox
@@ -27,7 +29,7 @@ class FluctFitModels(SimstackToolbox):
         for map_name in y:
             map_lambda = y[map_name]['wavelength']
             map_nu = c * 1.e6 / map_lambda
-            map_coords = y[map_name]['map_coords']
+            map_coords = y[map_name]['map_coords']['sf']
             map_sky = y[map_name]['map'] - np.mean(y[map_name]['map'])
 
             map_model = np.zeros_like(map_sky)
