@@ -17,37 +17,37 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
     datacube_dict = {}
     init_dict = {
         'A':
-            {'sf': {'offset': -42,
+            {'sf': {'offset': -42.0,
                     'slope_redshift': 0.16,
                     'slope_stellar_mass': 0.7,
                     'slope_agn_fraction': 0.1,
                     },
-             'qt': {'offset': -35,
+             'qt': {'offset': -35.0,
                     'slope_redshift': 0.2,
                     'slope_stellar_mass': 0.1,
                     'slope_agn_fraction': 0.2,
                     },
-             'agn': {'offset': -41,
+             'agn': {'offset': -41.0,
                      'slope_redshift': 0.4,
                      'slope_stellar_mass': 0.6,
                      'slope_agn_fraction': -0.6,
                      },
              },
         'T':
-            {'sf': {'offset': 49,
+            {'sf': {'offset': 49.0,
                     'slope_redshift': 5.6,
                     'slope_stellar_mass': -2.7,
                     'slope_agn_fraction': 0.5,
                     },
-             'qt': {'offset': -8,
-                    'slope_redshift': 7,
-                    'slope_stellar_mass': 2,
+             'qt': {'offset': -8.0,
+                    'slope_redshift': 7.0,
+                    'slope_stellar_mass': 2.0,
                     'slope_agn_fraction': 2.3,
                     },
-             'agn': {'offset': 18,
+             'agn': {'offset': 18.0,
                      'slope_redshift': 0.8,
                      'slope_stellar_mass': -0.001,
-                     'slope_agn_fraction': 24,
+                     'slope_agn_fraction': 4.0,
                      },
              },
     }
@@ -77,7 +77,7 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
                                        value=self.init_dict['T'][pop]['slope_' + key])
         return fit_params_init
 
-    def perform_fluctfit(self):
+    def perform_fluctfit(self, method='leastsq', maxiter=None):
         t0 = time.time()
         fit_params_init = self.get_init_parameters()
         '''fit_params_init = Parameters()
@@ -115,18 +115,21 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
         # Perform FluctFit
         if len(self.datacube_dict['populations']) == 1:
             self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_one_pop, fit_params_init,
+                                                           method=method,
                                                            args=(self.datacube_dict['datacube'][self.datacube_dict['idx']['sf']].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
         # Perform FluctFit
         if len(self.datacube_dict['populations']) == 2:
             self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_two_pop, fit_params_init,
+                                                           method=method,
                                                            args=(self.datacube_dict['datacube'].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
         # Perform FluctFit
         if len(self.datacube_dict['populations']) == 3:
             self.results_dict['cov_direct_fit'] = minimize(self.direct_convolved_fit_A_Tdust_three_pop, fit_params_init,
+                                                           method=method,
                                                            args=(self.datacube_dict['datacube'].to_numpy().T,),
                                                            kws={'y': self.datacube_dict['simmap_dict']},
                                                            nan_policy='propagate')
@@ -150,11 +153,13 @@ class FluctFitAlgorithm(FluctFitModels, SimstackToolbox, Skymaps, Skycatalogs):
 
         self.datacube_dict['datacube'] = \
             self.catalog_dict['tables']['full_table'][self.datacube_dict['catalog_keys']]
+        if 'F_ratio' in self.datacube_dict['datacube']:
+            fratio_min = 1e-2
+            self.datacube_dict['datacube']['F_ratio'] = np.log10(self.datacube_dict['datacube']['F_ratio'] + fratio_min)
+
         if 'agn' in populations:
             if 'F_ratio' in self.datacube_dict['datacube']:
-                fratio_min = 1e-2
                 Fratio_cut = 1e-2
-                self.datacube_dict['datacube']['F_ratio'] = np.log10(self.datacube_dict['datacube']['F_ratio'] + fratio_min)
                 self.datacube_dict['datacube']['sfg'][self.datacube_dict['datacube']['F_ratio'] >= Fratio_cut] = 2
             elif 'a_hat_AGN' in self.datacube_dict['datacube']:
                 ahat_cut = 0
