@@ -609,6 +609,37 @@ class SimstackToolbox(SimstackCosmologyEstimators):
 
         return Lrf
 
+    def fast_LIR2(self, theta_A, theta_T, zin, dzin=None):
+        wavelength_range = self.loggen(8, 1000, 1000)
+        T_cold, T_hot = theta_T
+        A_cold, A_hot = theta_A[0], theta_A[1]
+        theta_cold = A_cold, T_cold / (1 + zin)
+        theta_hot = A_hot, T_hot / (1 + zin)
+        model_cold_sed = self.graybody_fn(theta_cold, wavelength_range)
+        model_hot_sed = self.graybody_fn(theta_hot, wavelength_range)
+
+        nu_in = c * 1.e6 / wavelength_range
+        dnu = nu_in[:-1] - nu_in[1:]
+        dnu = np.append(dnu[0], dnu)
+        Lir = np.sum((model_cold_sed + model_hot_sed)  * dnu, axis=1)
+        conversion = 4.0 * np.pi * (
+                    1.0E-13 * self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
+                zin) * 3.08568025E22) ** 2.0 / L_sun  # 4 * pi * D_L^2    units are L_sun/(Jy x Hz)
+
+        Lrf = (Lir * conversion.value)[0]  # Jy x Hz
+
+        if dzin is not None:
+            dLrf = np.zeros([2])
+            for idz, dz in enumerate(dzin):
+                conversion = 4.0 * np.pi * (
+                        1.0E-13 * self.config_dict['cosmology_dict']['cosmology'].luminosity_distance(
+                    dz) * 3.08568025E22) ** 2.0 / L_sun  # 4 * pi * D_L^2    units are L_sun/(Jy x Hz)
+                dLrf[idz] = (Lir * conversion.value)[0]
+
+            return Lrf, dLrf
+
+        return Lrf
+
     def fast_Lir(self, m, zin):  # Tin,betain,alphain,z):
         '''I dont know how to do this yet'''
         wavelength_range = self.loggen(8, 1000, 1000)
